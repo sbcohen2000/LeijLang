@@ -1,0 +1,88 @@
+%% Written by Samuel Burns Cohen
+
+\ProvidesPackage{Preamble}
+
+\pagestyle{empty}
+
+%% Set margins to 1 inch
+\usepackage[margin=1.0in]{geometry}
+
+%% Include packages
+\usepackage[utf8]{inputenc}
+\usepackage{textcomp}
+\usepackage{flafter}
+\usepackage{natbib}
+\usepackage{multicol}
+\usepackage{caption}
+\usepackage{wrapfig}
+\usepackage{amsmath, amssymb}
+\usepackage{bm}
+\usepackage{graphicx}
+\graphicspath{{./}}
+\usepackage{tabularx}
+\usepackage{verbatim}
+\usepackage{listings}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{cancel}
+\usepackage{titlesec}
+\usepackage{natbib}
+\usepackage[pdftex,bookmarks,colorlinks,breaklinks]{hyperref}
+
+\pagecolor{white}
+\definecolor{dullmagenta}{rgb}{0.4,0,0.4}
+\definecolor{darkblue}{rgb}{0,0,0.4}
+\hypersetup{linkcolor=red,citecolor=blue,filecolor=dullmagenta,urlcolor=darkblue}
+
+\usepackage{memhfixc}
+\usepackage{pdfsync}
+
+% Euler for math | Palatino for rm | Helvetica for ss | Courier for tt
+\renewcommand{\rmdefault}{ppl}
+\linespread{1.05}
+\usepackage[scaled]{helvet}
+\usepackage{courier}
+\usepackage{inconsolata}
+\usepackage{euler}
+\normalfont
+\usepackage[T1]{fontenc}
+
+%% listing configuration
+\lstdefinestyle{mystyle}{
+	commentstyle=\color{gray},
+	basicstyle=\ttfamily\footnotesize,
+	numberstyle=\footnotesize\ttfamily\color{lightgray},
+	tabsize=4,
+	showspaces=false,                
+    showstringspaces=false,
+    numbers=left,
+}
+\lstset{style=mystyle}
+
+%% full column width figure
+\newenvironment{Figure}
+  {\par\medskip\noindent\minipage{\linewidth}}
+  {\endminipage\par\medskip}
+  
+\newenvironment{TopStripeEnv}
+	{\setlength\tabcolsep{0pt}}
+	
+%% Section Title Format
+
+\titleformat{\section}[wrap]
+	{\normalfont\fontseries{b}\selectfont\filright}
+	{\thesection.}{.5em}{}
+	\titlespacing{\section}
+	{12pc}{1.5ex plus .1ex minus .2ex}{1pc}
+	
+\titleformat{\subsection}[wrap]
+	{\normalfont\fontseries{b}\selectfont\filright}
+	{\thesubsection.}{.5em}{}
+	\titlespacing{\subsection}
+	{12pc}{1.5ex plus .1ex minus .2ex}{1pc}
+	
+\titleformat{\subsubsection}[wrap]
+	{\normalfont\fontseries{b}\selectfont\filright}
+	{\thesubsubsection.}{.5em}{}
+	\titlespacing{\subsubsection}
+	{12pc}{1.5ex plus .1ex minus .2ex}{1pc}
+	

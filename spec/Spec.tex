@@ -1,0 +1,136 @@
+%% Written by Samuel Burns Cohen
+\documentclass[12pt]{article}
+\usepackage{Preamble}
+
+%% End preamble
+\begin{document}
+
+\begin{Huge}
+
+%% Document Title
+\noindent
+\textbf{\textsf{The Leij Programming Language}}
+
+\end{Huge}
+\begin{TopStripeEnv}
+\noindent
+\begin{tabularx}{\textwidth}{X l}
+Sam Cohen & \today \\
+\end{tabularx}
+\end{TopStripeEnv}
+
+\begin{comment}
+
+%%                          FULL PAGE FIGURE
+\begin{figure*}[h]
+	\centering
+	\includegraphics[width=14cm]{sample-figure.jpg}
+	\captionof{figure}{Test caption}
+\end{figure*}
+
+%%                           WRAPPED FIGURE
+\begin{wrapfigure}{l}{0.7\linewidth}
+	\centering
+	\includegraphics[width=\linewidth]{sample-figure.jpg}
+	\captionof{figure}{Test caption}
+\end{wrapfigure}
+
+%%                         FULL COLUMN FIGURE
+\begin{Figure}
+	\centering
+	\includegraphics[width=\linewidth]{sample-figure.jpg}
+	\captionof{figure}{Test caption}
+\end{Figure}
+
+\end{comment}
+
+%%Begin document content
+\definecolor{LightGray}{gray}{0.75}
+\newcommand{\Comment}[1]{\textrm{\color{LightGray}#1}}
+\newcommand{\Term}[1]{\textbf{\color{ForestGreen}\texttt{#1}}}
+\newcommand{\Non}[1]{\textit{#1}}
+\newcommand{\Rec}[1]{\underline{\smash{\Non{#1}}}}
+\newcommand{\Eq}{$::=$}
+\newcommand{\Or}{$|$}
+\section{Formal Grammar}
+\subsection{Declarations}
+\begin{center}
+\begin{tabular}{r c l}
+\Non{program} & \Eq & \Non{decl} \Term{;} \\ 
+              & \Or & \Rec{program} \Non{decl} \\
+              & \Or & $\epsilon$ \\
+\Non{decl} & \Eq & \Term{fun} \Non{name} \Non{arglist} \Term{=} \Non{exp} \\
+           & \Or & \Term{val} \Non{name} \Term{=} \Non{exp} \\
+           & \Or & \Term{union} \Non{tyvarlist} \Non{name} \Term{=} \Non{unionbody} \\
+\Non{unionbody} & \Eq & \Non{name} \Term{of} \Non{type}\\
+                & \Or & \Rec{unionbody} \Term{|} \Non{name} \Term{of} \Non{type}\\
+\end{tabular}
+\end{center}
+\subsection{Expressions}
+\begin{center}
+\begin{tabular}{r c l r}
+\Non{exp} & \Eq & \Rec{exp} \Rec{exp} & \Comment{function application}\\
+          & \Or & \Rec{exp} \Term{.} \Non{name} & \Comment{record elimination}\\
+          & \Or & \Term{(} \Rec{exp} \Term{)} & \\
+          & \Or & \Non{const} & \\
+          & \Or & \Non{name} & \\
+          & \Or & \Term{fn} \Non{arg} \Term{=>} \Rec{exp} & \Comment{lambda}\\
+          & \Or & \Term{if} \Rec{exp} \Term{then} \Rec{exp} \Term{else} \Rec{exp} & \\
+          & \Or & \Term{match} \Rec{exp} \Term{with} \Non{matches} & 
+          \Comment{pattern matching} \\
+          & \Or & \Term{\{} \Non{block} \Term{;} \Term{\}} & \Comment{let} \\
+          & \Or & \Term{raise} \Non{name} & \\
+          & \Or & \Non{binop} & \\
+\Non{matches} & \Eq & \Non{pattern} \Term{=>} \Non{exp} & \\
+              & \Or & \Non{pattern} \Term{=>} \Non{exp} \Term{|} \Rec{matches} & \\
+\Non{block} & \Eq & \Non{exp} & \\
+            & \Or & \Term{val} \Non{name} \Term{=} \Non{exp} & \\
+            & \Or & \Rec{block} \Term{;} \Non{exp} & \\
+            & \Or & \Rec{block} \Term{;} \Term{val} \Non{name} \Term{=} \Non{exp} & \\
+\end{tabular}
+\end{center}
+
+\subsection{Constants and Literals}
+\begin{center}
+\begin{tabular}{r c l}
+\Non{const} & \Eq & \Non{number} \\
+            & \Or & \Term{true} \\
+            & \Or & \Term{false} \\
+            & \Or & \Term{()} \\
+            & \Or & \Term{[} \Non {list} \Term{]} \\
+            & \Or & \Term{\{} \Non{record} \Term{\}} \\
+\Non{list} & \Eq & \Non{exp} \\
+           & \Or & \Rec{list} \Term{,} \Non{exp} \\
+           & \Or & $\epsilon$ \\
+\Non{record} & \Eq & \Non{name} \Term{=} \Non{exp} \\
+             & \Or & \Rec{record} \Term{,} \Non{name} \Term{=} \Non{exp} \\
+\end{tabular}
+\end{center}
+
+\subsection{Type Expressions}
+\begin{center}
+\begin{tabular}{r c l}
+\Non{type} & \Eq & \Term{(} \Rec{type} \Term{)} \\
+		   & \Or & \Term{()} \\
+           & \Or & \Non{name} \\
+           & \Or & \Non{quote} \\
+           & \Or & \Rec{type} \Term{->} \Rec{type} \\
+           & \Or & \Term{\{} \Non{recordtype} \Term{\}} \\
+\Non{recordtype} & \Eq & \Non{name} \Term{=} \Non{type} \\
+                 & \Or & \Rec{recordtype} \Term{,} \Non{name} \Term{=} \Non{type} \\
+\end{tabular}
+\end{center}
+
+\subsection{Helpers}
+\begin{center}
+\begin{tabular}{r c l}
+\Non{arg} & \Eq & \Non{name}\\
+          & \Or & \Term{\_}\\
+\Non{arglist} & \Eq & \Non{arg}\\
+              & \Or & \Rec{arglist} \Non{arg}\\
+\Non{tyvarlist} & \Eq & \Non{quote} \Rec{tyvarlist}\\
+                & \Or & $\epsilon$\\
+\end{tabular}
+\end{center}
+
+\end{document}

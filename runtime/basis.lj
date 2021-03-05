@@ -1,0 +1,11 @@
+union 'a list = CONS of { car = 'a, cdr = list } | NIL;
+
+fun map f list = match list
+		 with CONS pair => CONS { car = f pair.car,
+					  cdr = map f pair.cdr }
+		      | NIL n => [];
+
+fun range first last = if first >= last
+		       then []
+		       else (CONS { car = first,
+				    cdr = range (first + 1) last });

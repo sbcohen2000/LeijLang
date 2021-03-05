@@ -1,0 +1,8 @@
+local
+ $(SML_LIB)/basis/basis.mlb
+ AST.sml
+ Lexer.sml
+ Parser.sml
+in
+ lc.sml
+end
