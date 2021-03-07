@@ -202,7 +202,7 @@ fun charLiteral lexer =
 fun quote lexer =
     let val newLexer = consumeWhile isAllowedQuoteChar lexer
 	val (_, quoteStr, _) = newLexer
-    in if peek newLexer = #"'" then (lexer, NONE) (* quotes can't end in ' *)
+    in if quoteStr = "'" orelse peek newLexer = #"'" then (lexer, NONE) (* quotes can't end in ' *)
        else (newLexer, SOME (TOKEN (QUOTE, locationOf lexer, STR_VAL quoteStr)))
     end
 
