@@ -1043,10 +1043,10 @@ fun parse str =
     in Parser.parse parser
     end
 
-fun loadInitialBasis () =
+fun evalFile (filename, (Gamma, Rho, Delta)) =
     let val flags = { prompt = false, showAST = false }
-	val (Gamma, Rho) = introducePrimitives (emptyEnv, emptyEnv, emptyEnv)
-	val basisText = readFileIntoString "basis.lj"
+	
+	val basisText = readFileIntoString filename
 	val decls = SOME (parse basisText)
 		    handle Parser.SyntaxError msg => NONE before print msg
 	val (_, Gamma', Rho', Delta)
@@ -1059,7 +1059,7 @@ fun loadInitialBasis () =
     in (Gamma', Rho', Delta)
     end
 	
-fun REPL flags =
+fun REPL (flags, (Gamma, Rho, Delta)) =
     let fun loop (Gamma, Rho, Delta) =
 	    let val decls = SOME (parse (fetchInput flags))
 			    handle Parser.SyntaxError msg => NONE before print msg
@@ -1070,15 +1070,29 @@ fun REPL flags =
 						("", Gamma, Rho, Delta) ds
 				   | NONE => ("", Gamma, Rho, Delta))
 		      handle e => (recover e, Gamma, Rho, Delta)
-		val _ = print (response ^ "\n")
+		val _ = if #prompt flags
+			then print (response ^ "\n")
+			else ()
 	    in loop (Gamma', Rho', Delta')
 	    end
-    in loop (loadInitialBasis ())
+    in loop (Gamma, Rho, Delta)
     end
 
+fun prepareEnvironment () =
+    let val (Gamma, Rho) = introducePrimitives (emptyEnv, emptyEnv, emptyEnv)
+	val (Gamma, Rho, Delta) = evalFile ("basis.lj", (Gamma, Rho, emptyEnv))
+    in (Gamma, Rho, Delta)
+    end
+	
+fun isValidFile str =
+    not (String.isPrefix "-" str)
+	
 val _ = let val args = CommandLine.arguments()
+	    val srcFile = List.find isValidFile args
 	    val prompt = not (List.exists (fn s => s = "-q") args)
 	    val showAST = List.exists (fn s => s = "--AST") args
-	    val _ = REPL ({ prompt = prompt, showAST = showAST })
+	    val env = prepareEnvironment ()
+	    val _ = case srcFile of SOME filename => evalFile (filename, env)
+				  | NONE => REPL ({ prompt = prompt, showAST = showAST }, env)
 	in ()
 	end
