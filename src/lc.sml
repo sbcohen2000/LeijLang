@@ -70,12 +70,28 @@ datatype con = TRIVIAL
 infix 4 ~
 infix 3 /\
 
+(*                         ------ PROJECTIONS ------                          *)
 
 fun projectBool (BOOL false) = false
   | projectBool _            = true
 
 fun projectNum (NUM n) = n
   | projectNum _ = raise ShouldNotHappen "NUM projection failed"
+
+fun projectChar (CHAR c) = c
+  | projectChar _ = raise ShouldNotHappen "CHAR projection failed"
+
+exception MalformedList
+fun projectList (VARIANT ("CONS", RECORD ([("cdr", rest), ("car", car)]))) =
+    car::(projectList rest)
+  | projectList (VARIANT ("CONS", RECORD ([("car", car), ("cdr", rest)]))) =
+    car::(projectList rest)
+  | projectList (VARIANT ("NIL", _)) = []
+  | projectList _ = raise MalformedList
+
+fun embedList ([]) = VARIANT ("NIL", UNIT)
+  | embedList (v::vs) = VARIANT ("CONS",
+				 RECORD ([("cdr", embedList vs), ("car", v)]))
 
 (*                         ------ ENVIRONMENTS ------                         *)
 type 'a env = (string * 'a) list
@@ -105,6 +121,13 @@ val exntype = TYCON "exn"
 fun funtype (param, result) = CONAPP (TYCON "function", CONAPP (param, result))
 fun rowtype (record as (label, t), ext) = TYROW (record, ext)
 val emptyrow = TYEMPTYROW
+
+fun listtype ty = MU ("'a", CONAPP (TYCON "variant",
+				    rowtype (("CONS",
+					      CONAPP (TYCON "record",
+						      rowtype (("car", ty),
+							       rowtype (("cdr", TYVAR "'a"), TYEMPTYROW)))),
+					     rowtype (("NIL", unittype), TYEMPTYROW))))
 		   
 fun arityTwoPrim (argATau, argBTau, retTau, f) =
     ABS ("a", ABS ("b", RAW (retTau, [(argATau, VAR "a"), (argBTau, VAR "b")], f)))
@@ -800,13 +823,7 @@ fun valueString (UNIT) = "unit"
 		   | NONE => "union"
 
 and asList (l as VARIANT ("CONS", listElems)) =
-    let fun flatten (VARIANT ("CONS", RECORD ([("cdr", rest), ("car", car)]))) =
-	    car::(flatten rest)
-	  | flatten (VARIANT ("CONS", RECORD ([("car", car), ("cdr", rest)]))) =
-	    car::(flatten rest)
-	  | flatten (VARIANT ("NIL", _)) = []
-	  | flatten _ = raise MalformedList
-	val listElems = SOME (flatten l)
+    let val listElems = SOME (projectList l)
 			handle MalformedList => NONE
     in case listElems of SOME l => SOME ("[" ^ injectBetween ", " (List.map valueString l) ^ "]")
 		       | NONE => NONE
