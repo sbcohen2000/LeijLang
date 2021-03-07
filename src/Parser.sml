@@ -455,23 +455,23 @@ and infixExpr (e, p) =
 	fun binOp (name, kind, arg1, p) =
 	    let val p = expect p kind
 		val (arg2, p) = expr p
-	    in (PRIMAPP (name, [arg1, arg2]), p)
+	    in (APP (APP (VAR name, arg1), arg2), p)
 	    end
 		
 	val kind = Tokens.kindOf (peek p)
     in case kind of Tokens.DOT       => dotExpr (e, p)
-		  | Tokens.EQ        => binOp ("=",  Tokens.EQ, e, p)
-		  | Tokens.PLUS      => binOp ("+",  Tokens.PLUS, e, p)
-		  | Tokens.MINUS     => binOp ("-",  Tokens.MINUS, e, p)
-		  | Tokens.STAR      => binOp ("*",  Tokens.STAR, e, p)
-		  | Tokens.SLASH     => binOp ("/",  Tokens.SLASH, e, p)
-		  | Tokens.PERCENT   => binOp ("%",  Tokens.PERCENT, e, p)
-		  | Tokens.LESS      => binOp ("<",  Tokens.LESS, e, p)
-		  | Tokens.MORE      => binOp (">",  Tokens.MORE, e, p)
+		  | Tokens.EQ        => binOp ("=",  Tokens.EQ,        e, p)
+		  | Tokens.PLUS      => binOp ("+",  Tokens.PLUS,      e, p)
+		  | Tokens.MINUS     => binOp ("-",  Tokens.MINUS,     e, p)
+		  | Tokens.STAR      => binOp ("*",  Tokens.STAR,      e, p)
+		  | Tokens.SLASH     => binOp ("/",  Tokens.SLASH,     e, p)
+		  | Tokens.PERCENT   => binOp ("%",  Tokens.PERCENT,   e, p)
+		  | Tokens.LESS      => binOp ("<",  Tokens.LESS,      e, p)
+		  | Tokens.MORE      => binOp (">",  Tokens.MORE,      e, p)
 		  | Tokens.LESSEQUAL => binOp ("<=", Tokens.LESSEQUAL, e, p)
 		  | Tokens.MOREEQUAL => binOp (">=", Tokens.MOREEQUAL, e, p)
-		  | Tokens.AND       => binOp ("&&", Tokens.AND, e, p)
-		  | Tokens.OR        => binOp ("||", Tokens.OR, e, p)
+		  | Tokens.AND       => binOp ("&&", Tokens.AND,       e, p)
+		  | Tokens.OR        => binOp ("||", Tokens.OR,        e, p)
 		  | _ => (e, p)
     end
 	

@@ -100,50 +100,55 @@ val emptyEnv = []
 val booltype = TYCON "bool"
 val inttype  = TYCON "int"
 val unittype = TYCON "unit"
-val exntype  = TYCON "exn"
+val exntype = TYCON "exn"
 fun funtype (param, result) = CONAPP (TYCON "function", CONAPP (param, result))
 fun rowtype (record as (label, t), ext) = TYROW (record, ext)
 val emptyrow = TYEMPTYROW
+		   
+fun arityTwoPrim (argATau, argBTau, retTau, f) =
+    ABS ("a", ABS ("b", RAW (retTau, [(argATau, VAR "a"), (argBTau, VAR "b")], f)))
+	
+val badArity = ShouldNotHappen "primitive applied to wrong number of arguments"
 
-fun binPrim f ([a, b]) = f (a, b)
-  | binPrim _ _ = raise ShouldNotHappen "primitive applied with wrong arity"
-val badArgs = ShouldNotHappen "primitive applied with bad argument values"
-fun arithmeticPrim operation =
-    binPrim (fn a => case a of (NUM a, NUM b) => NUM (operation (a, b))
-			     | _ => raise badArgs)
-fun comparisonPrim operation =
-    binPrim (fn a => case a of (NUM a, NUM b) => BOOL (operation (a, b))
-			     | _ => raise badArgs)
-fun binBoolPrim operation =
-    binPrim (fn a => case a of (BOOL a, BOOL b) => BOOL (operation (a, b))
-			     | _ => raise badArgs)
-	    
-type primitive = ty * (value list -> value)
-val primitives = [("+",  (funtype (inttype, funtype (inttype, inttype)),
-			  arithmeticPrim (op + ))),
-		  ("-",  (funtype (inttype, funtype (inttype, inttype)),
-			  arithmeticPrim (op - ))),
-		  ("*",  (funtype (inttype, funtype (inttype, inttype)),
-			  arithmeticPrim (op * ))),
-		  ("/",  (funtype (inttype, funtype (inttype, inttype)),
-			  arithmeticPrim (op div ))),
-		  ("%",  (funtype (inttype, funtype (inttype, inttype)),
-			  arithmeticPrim (op mod ))),
-		  ("=",  (funtype (inttype, funtype (inttype, booltype)),
-			  comparisonPrim (op = ))),
-		  ("<",  (funtype (inttype, funtype (inttype, booltype)),
-			  comparisonPrim (op < ))),
-		  ("<=", (funtype (inttype, funtype (inttype, booltype)),
-			  comparisonPrim (op <= ))),
-		  (">",  (funtype (inttype, funtype (inttype, booltype)),
-			  comparisonPrim (op > ))),
-		  (">=", (funtype (inttype, funtype (inttype, booltype)),
-			  comparisonPrim (op >= ))),
-		  ("&&", (funtype (booltype, funtype (booltype, booltype)),
-			  binBoolPrim (fn (a, b) => a andalso b))),
-		  ("||", (funtype (booltype, funtype (booltype, booltype)),
-			  binBoolPrim (fn (a, b) => a orelse b)))]
-		     
+fun primEq args = case args of [a, b] => BOOL ((projectNum a) = (projectNum b))
+			     | _ => raise badArity
+fun primAdd args = case args of [a, b] => NUM ((projectNum a) + (projectNum b))
+			      | _ => raise badArity
+fun primSub args = case args of [a, b] => NUM ((projectNum a) - (projectNum b))
+			      | _ => raise badArity
+fun primMul args = case args of [a, b] => NUM ((projectNum a) * (projectNum b))
+			      | _ => raise badArity
+fun primDiv args = case args of [a, b] => NUM ((projectNum a) div (projectNum b))
+			      | _ => raise badArity
+fun primMod args = case args of [a, b] => NUM ((projectNum a) mod (projectNum b))
+			      | _ => raise badArity
+fun primLess args = case args of [a, b] => BOOL ((projectNum a) < (projectNum b))
+			       | _ => raise badArity
+fun primMore args = case args of [a, b] => BOOL ((projectNum a) > (projectNum b))
+			       | _ => raise badArity
+fun primLessEq args = case args of [a, b] => BOOL ((projectNum a) <= (projectNum b))
+				 | _ => raise badArity
+fun primMoreEq args = case args of [a, b] => BOOL ((projectNum a) >= (projectNum b))
+				 | _ => raise badArity
+fun primAnd args = case args of [a, b] => BOOL ((projectBool a) andalso (projectBool b))
+			      | _ => raise badArity
+fun primOr args = case args of [a, b] => BOOL ((projectBool a) orelse (projectBool b))
+			     | _ => raise badArity
+					  
+val primitives =
+    [("=", arityTwoPrim (inttype, inttype, booltype, primEq)),
+     ("+", arityTwoPrim (inttype, inttype, inttype, primAdd)),
+     ("-", arityTwoPrim (inttype, inttype, inttype, primSub)),
+     ("*", arityTwoPrim (inttype, inttype, inttype, primMul)),
+     ("/", arityTwoPrim (inttype, inttype, inttype, primDiv)),
+     ("%", arityTwoPrim (inttype, inttype, inttype, primMod)),
+     ("<", arityTwoPrim (inttype, inttype, booltype, primLess)),
+     (">", arityTwoPrim (inttype, inttype, booltype, primMore)),
+     ("<=", arityTwoPrim (inttype, inttype, booltype, primLessEq)),
+     (">=", arityTwoPrim (inttype, inttype, booltype, primMoreEq)),
+     ("&&", arityTwoPrim (booltype, booltype, booltype, primAnd)),
+     ("||", arityTwoPrim (booltype, booltype, booltype, primOr))]
+	
 (*                             ------ SETS ------                             *)
 type 'a set = 'a list
 fun member x = List.exists (fn y => y = x)
@@ -927,7 +932,15 @@ fun isRectype (name, TYCON s) = name = s
   | isRectype (name, CONAPP (ta, tb)) = isRectype (name, ta) orelse isRectype (name, tb)
   | isRectype (name, TYROW ((_, ta), tb)) = isRectype (name, ta) orelse isRectype (name, tb)
   | isRectype _ = false
-		      
+
+fun introduceDefs (namedEs, Gamma, Rho, Delta) =
+    let val Gamma' = List.foldl (fn ((name, e), Gamma) => typedef (name, e, Gamma, Delta))
+				Gamma namedEs
+	val Rho' = List.foldl (fn ((name, e), Rho) => evaldef (name, e, Rho))
+			      Rho namedEs
+    in (Gamma', Rho')
+    end
+	
 (* 
  * introduceConstructors
  * 
@@ -935,15 +948,14 @@ fun isRectype (name, TYCON s) = name = s
  * in names.
  *)
 fun introduceConstructors (names, Gamma, Rho, Delta) =
-    let fun makeVariantConstructor name =
+    let fun makeConstructor name =
 	    ABS ("expr", INJ (name, VAR "expr"))
-	val namedEs = List.map (fn nm => (nm, makeVariantConstructor nm)) names
-	val Gamma' = List.foldl (fn ((name, e), Gamma) => typedef (name, e, Gamma, Delta))
-				Gamma namedEs
-	val Rho' = List.foldl (fn ((name, e), Rho) => evaldef (name, e, Rho))
-			      Rho namedEs
-    in (Gamma', Rho')
+	val namedEs = List.map (fn nm => (nm, makeConstructor nm)) names
+    in introduceDefs (namedEs, Gamma, Rho, Delta)
     end
+
+fun introducePrimitives (Gamma, Rho, Delta) =
+    introduceDefs (primitives, Gamma, Rho, Delta)
 
 fun processDef (VAL (name, rawExpr), flags, Gamma, Rho, Delta) =
     let val expr = desugar rawExpr
@@ -990,20 +1002,21 @@ fun parse str =
 	val parser = Parser.newParser lexer
     in Parser.parse parser
     end
-	
+
 fun loadInitialBasis () =
     let val flags = { prompt = false, showAST = false }
+	val (Gamma, Rho) = introducePrimitives (emptyEnv, emptyEnv, emptyEnv)
 	val basisText = readFileIntoString "basis.lj"
 	val decls = SOME (parse basisText)
 		    handle Parser.SyntaxError msg => NONE before print msg
-	val (_, Gamma, Rho, Delta)
+	val (_, Gamma', Rho', Delta)
 	    = (case decls of SOME ds =>
 			     List.foldl (fn (dec, (str, Gamma, Rho, Delta)) =>
 					    processDef (dec, flags, Gamma, Rho, Delta))
-					("", emptyEnv, emptyEnv, emptyEnv) ds
-			   | NONE => ("", emptyEnv, emptyEnv, emptyEnv))
-	      handle e => (recover e, emptyEnv, emptyEnv, emptyEnv)
-    in (Gamma, Rho, Delta)
+					("", Gamma, Rho, emptyEnv) ds
+			   | NONE => ("", Gamma, Rho, emptyEnv))
+	      handle e => (recover e, Gamma, Rho, emptyEnv)
+    in (Gamma', Rho', Delta)
     end
 	
 fun REPL flags =
