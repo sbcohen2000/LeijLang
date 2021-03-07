@@ -8,9 +8,9 @@
 structure Tokens =
 struct
 type location = int * int
-datatype payload = STRING of string
-		 | CHR of char
-		 | INT of int
+datatype payload = STR_VAL of string
+		 | CHR_VAL of char
+		 | INT_VAL of int
 		 | EMPTY
 datatype token = TOKEN of kind * location * payload
      and kind = NAME        (* constants *)
@@ -82,13 +82,13 @@ fun locationOf (a : token) =
 fun isEOF (TOKEN (EOF, _, _)) = true
   | isEOF _ = false
 
-fun stringOf (TOKEN (_, _, STRING s)) = SOME s
+fun stringOf (TOKEN (_, _, STR_VAL s)) = SOME s
   | stringOf _ = NONE
 
-fun charOf (TOKEN (_, _, CHR c)) = SOME c
+fun charOf (TOKEN (_, _, CHR_VAL c)) = SOME c
   | charOf _ = NONE
 		     
-fun intOf (TOKEN (_, _, INT i)) = SOME i
+fun intOf (TOKEN (_, _, INT_VAL i)) = SOME i
   | intOf _ = NONE
 		  
 end
@@ -184,7 +184,7 @@ fun keyword lexer =
 fun name lexer =
     let val newLexer = consumeWhile isAllowedNameChar lexer
 	val (_, nameStr, _) = newLexer
-    in (newLexer, SOME (TOKEN (NAME, locationOf lexer, STRING nameStr)))
+    in (newLexer, SOME (TOKEN (NAME, locationOf lexer, STR_VAL nameStr)))
     end
 
 fun charLiteral lexer =
@@ -194,7 +194,7 @@ fun charLiteral lexer =
 		val newLexer = consume lexer
 	    in if peek newLexer = #"'"
 	       then (consume newLexer,
-		     SOME (TOKEN (CHAR, locationOf lexer, CHR contents)))
+		     SOME (TOKEN (CHAR, locationOf lexer, CHR_VAL contents)))
 	       else (lexer, NONE)
 	    end
     end
@@ -203,7 +203,7 @@ fun quote lexer =
     let val newLexer = consumeWhile isAllowedQuoteChar lexer
 	val (_, quoteStr, _) = newLexer
     in if peek newLexer = #"'" then (lexer, NONE) (* quotes can't end in ' *)
-       else (newLexer, SOME (TOKEN (QUOTE, locationOf lexer, STRING quoteStr)))
+       else (newLexer, SOME (TOKEN (QUOTE, locationOf lexer, STR_VAL quoteStr)))
     end
 
 fun number lexer =
@@ -211,7 +211,7 @@ fun number lexer =
 	val (_, numStr, _) = newLexer
 	val possibleNum = Int.fromString numStr
     in case possibleNum of SOME n => (newLexer,
-				      SOME (TOKEN (NUMBER, locationOf lexer, INT n)))
+				      SOME (TOKEN (NUMBER, locationOf lexer, INT_VAL n)))
 			 | NONE => (lexer, NONE)
     end
 
@@ -330,7 +330,7 @@ fun nextToken lexer =
 
     in case possibleToken of SOME t => (t, lexer)
 			   | NONE => (TOKEN (ERROR, locationOf lexer,
-					     STRING 
+					     STR_VAL 
 						 ("illegal char: \"" ^
 						  Char.toString char ^
 						  "\"")), lexer)
@@ -387,9 +387,9 @@ fun kindString NAME        = "name"
 			      
 fun tokenString t =
     let val TOKEN (kind, _, payload) = t
-	val payloadString = case payload of STRING s => " \"" ^ s ^ "\""
-					  | CHR c => " '" ^ Char.toString c ^ "'"
-					  | INT i => " (" ^ Int.toString i ^ ")"
+	val payloadString = case payload of STR_VAL s => " \"" ^ s ^ "\""
+					  | CHR_VAL c => " '" ^ Char.toString c ^ "'"
+					  | INT_VAL i => " (" ^ Int.toString i ^ ")"
 					  | EMPTY => ""
     in kindString kind ^ payloadString
     end
