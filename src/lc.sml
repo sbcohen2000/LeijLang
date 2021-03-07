@@ -560,9 +560,7 @@ fun solve c =
 					
 	    in (compose (solve (t ~ t' /\ r ~ s'), theta1))
 	    end
-	  | solveEq (MU (t, tau), MU (t', tau')) =
-	    if not (t = t') then raise UnsatisfiableConstraint (UNEQUAL (MU (t, tau), MU (t', tau')))
-	    else solve (tau ~ tau')
+	  | solveEq (MU (t, tau), MU (t', tau')) = solve ((TYVAR t) ~ (TYVAR  t') /\ tau ~ tau')
 	  | solveEq (rectype as MU _, t) = solve (unroll rectype ~ t)
 	  | solveEq (t, rectype as MU _) = solve (t ~ unroll rectype)
 	  | solveEq (ta, tb) = raise UnsatisfiableConstraint (UNEQUAL (ta, tb))
@@ -810,8 +808,6 @@ fun typedef (name, e, Gamma : typeScheme env, Delta : typeScheme env) =
 	
 (*                          ------ EVALUATION ------                          *)
 
-exception MalformedList
-	      
 fun valueString (UNIT) = "unit"
   | valueString (BOOL b) = if b then "true" else "false"
   | valueString (NUM n) = Int.toString n
