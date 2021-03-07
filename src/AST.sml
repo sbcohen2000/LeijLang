@@ -29,7 +29,7 @@ datatype decl = VAL of string * exp
 	     | DEC of string * exp * exp * exp (* variant decomposition  *)
 	     | EXN of string                   (* exception              *)
 	     | RECORD_LITERAL of (string * exp) list
-	     | PRIMAPP of string * exp list
+	     | RAW of ty * (ty * exp) list * (value list -> value)
 	     | SUGAR of sugar
      and value = UNIT
 	       | BOOL of bool

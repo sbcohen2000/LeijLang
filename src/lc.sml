@@ -30,6 +30,10 @@ fun printTree exp =
 		    let val (_, es) = ListPair.unzip records
 		    in ("record", es)
 		    end
+		fun rawLabel vars =
+		    let val (_, es) = ListPair.unzip vars
+		    in ("raw", es)
+		    end
 		val (label, children) =
 		    case e of (CONST v)             => ("const", [])
 			    | (VAR v)               => ("var (" ^ v ^ ")", [])
@@ -41,8 +45,8 @@ fun printTree exp =
 			    | (INJ (_, e))          => ("inj", [e])
 			    | (DEC (_, e1, e2, e3)) => ("dec", [e1, e2, e3])
 			    | (EXN (s))             => ("exn", [])
-			    | (RECORD_LITERAL (records)) => recordLabel records
-			    | (PRIMAPP (l, es)) => ("prim (" ^ l ^ ")", es)
+			    | (RECORD_LITERAL (rs)) => recordLabel rs
+			    | (RAW (_, vars, _))    => rawLabel vars
 			    | (SUGAR _)             => ("sugar", [])
 		fun childString [] = ""
 		  | childString (e::[]) = indent ^ "└── " ^
@@ -209,9 +213,11 @@ and desugar (e as CONST _)        = e
 	val desugaredRecords = ListPair.zipEq (fields, desugaredEs)
     in RECORD_LITERAL desugaredRecords
     end
-  | desugar (PRIMAPP (name, es)) =
-    let val desugaredEs = List.map desugar es
-    in PRIMAPP (name, desugaredEs)
+  | desugar (RAW (ty, vars, f)) =
+    let val (taus, es) = ListPair.unzip vars
+	val desugaredEs = List.map desugar es
+	val desugaredVars = ListPair.zipEq (taus, desugaredEs)
+    in RAW (ty, desugaredVars, f)
     end
   | desugar (SUGAR s) = expand s
 			       
@@ -733,12 +739,12 @@ fun typeof (e, Gamma : typeScheme env, Delta : typeScheme env) : ty * con =
 	    in (CONAPP (TYCON "record", makeType (ListPair.zipEq (ls, taus))),
 		Con)
 	    end
-	  | ty (PRIMAPP (name, es)) =
-	    let val (formalTaus, Con) = typesof (es, Gamma)
-		val retTau = freshtyvar ()
-		val ftype = List.foldl funtype retTau formalTaus
-		val (primType, _) = find primitives name
-	    in (retTau, Con /\ ftype ~ primType)
+	  | ty (RAW (retTau, vars, _)) =
+	    let val (targetTaus, es) = ListPair.unzip vars
+		val (actualTaus, Con) = typesof (es, Gamma)
+		val conPairs = ListPair.zipEq (targetTaus, actualTaus)
+		val C = List.foldl (fn ((t, t'), C) => t ~ t' /\ C) TRIVIAL conPairs
+	    in (retTau, Con /\ C)
 	    end
 	  | ty (SUGAR _) =
 	    raise ShouldNotHappen "Sugar nodes should never be typed"
@@ -849,10 +855,9 @@ fun eval (e, Rho : value ref env) =
 	    let val value = List.map (fn (name, e) => (name, ev e)) records
 	    in RECORD value
 	    end
-	  | ev (PRIMAPP (name, es)) =
-	    let val formalValues = List.map ev es
-		val (_, f) = find primitives name
-	    in f formalValues
+	  | ev (RAW (_, vars, f)) =
+	    let val (_, es) = ListPair.unzip vars
+	    in f (List.map ev es)
 	    end
 	  | ev (SUGAR _) =
 	    raise ShouldNotHappen "Sugar nodes should never be evaluated"
