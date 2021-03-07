@@ -34,6 +34,7 @@ datatype decl = VAL of string * exp
      and value = UNIT
 	       | BOOL of bool
 	       | NUM of int
+	       | CHAR of char
 	       | CLOSURE of lam * value ref env
 	       | RECORD of (string * value) list
 	       | VARIANT of string * value

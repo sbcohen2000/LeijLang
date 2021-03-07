@@ -54,9 +54,13 @@ fun expect (parser as (theToken, _)) targetKind =
 
 val _ = op expect : parser -> Tokens.kind -> parser
 
+exception CannotExtract
 fun extractString parser = case Tokens.stringOf (peek parser) of SOME s => s
-							       | NONE => "MISSING PAYLOAD"
+							       | NONE => "EMPTY"
 
+fun extractChar parser = case Tokens.charOf (peek parser) of SOME c => c
+							   | NONE => #"!"
+									     
 fun extractNumber parser = case Tokens.intOf (peek parser) of SOME i => i
 							    | NONE => 0
 
@@ -219,7 +223,7 @@ local fun oneOf _ [] = false
 in fun isConstStarter token =
        let open Tokens
 	   val oneOf = oneOf (Tokens.kindOf token)
-       in oneOf [NUMBER, TRUE, FALSE, UNIT, OPENSQUARE, OPENCURLY]
+       in oneOf [NUMBER, CHAR, TRUE, FALSE, UNIT, OPENSQUARE, OPENCURLY]
        end
 
    fun isExprStarter token =
@@ -390,13 +394,16 @@ and constExpr p =
 	val (e, p) = if gotNum
 		     then (SOME (CONST (NUM possibleNum)), p)
 		     else (NONE, p)
-	val (gotTrue, p) = consumeIf (notAnyOf [gotNum]) p Tokens.TRUE
+	val possibleChar = extractChar p
+	val (gotChar, p) = consumeIf (notAnyOf [gotNum]) p Tokens.CHAR
+	val (e, p) = if gotChar then (SOME (CONST (CHAR possibleChar)), p) else (e, p)
+	val (gotTrue, p) = consumeIf (notAnyOf [gotNum, gotChar]) p Tokens.TRUE
 	val (e, p) = if gotTrue then (SOME (CONST (BOOL true)), p) else (e, p)
-	val (gotFalse, p) = consumeIf (notAnyOf [gotNum, gotTrue]) p Tokens.FALSE
+	val (gotFalse, p) = consumeIf (notAnyOf [gotNum, gotChar, gotTrue]) p Tokens.FALSE
 	val (e, p) = if gotFalse then (SOME (CONST (BOOL false)), p) else (e, p)
-	val (gotUnit, p) = consumeIf (notAnyOf [gotNum, gotTrue, gotFalse]) p Tokens.UNIT
+	val (gotUnit, p) = consumeIf (notAnyOf [gotNum, gotChar, gotTrue, gotFalse]) p Tokens.UNIT
 	val (e, p) = if gotUnit then (SOME (CONST UNIT), p) else (e, p)
-	val (gotSquare, p) = consumeIf (notAnyOf [gotNum, gotTrue, gotFalse]) p Tokens.OPENSQUARE
+	val (gotSquare, p) = consumeIf (notAnyOf [gotNum, gotChar, gotTrue, gotFalse]) p Tokens.OPENSQUARE
 	val (e, p) = if gotSquare 
 		     then let val isEmpty = Tokens.kindOf (peek p) = Tokens.CLOSESQUARE
 			      val (es, p) = if isEmpty then ([], p) else listExpr p
@@ -404,7 +411,7 @@ and constExpr p =
 			  in (SOME (SUGAR (LIST es)), p)
 			  end
 		     else (e, p)
-	val (gotCurly, p) = consumeIf (notAnyOf [gotNum, gotTrue, gotFalse, gotSquare]) p Tokens.OPENCURLY
+	val (gotCurly, p) = consumeIf (notAnyOf [gotNum, gotChar, gotTrue, gotFalse, gotSquare]) p Tokens.OPENCURLY
 	val (e, p) = if gotCurly
 		     then let val (records, p) = recordExpr p
 			      val p = expect p Tokens.CLOSECURLY

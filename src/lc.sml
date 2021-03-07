@@ -99,6 +99,7 @@ val emptyEnv = []
 						   
 val booltype = TYCON "bool"
 val inttype  = TYCON "int"
+val chartype = TYCON "char"
 val unittype = TYCON "unit"
 val exntype = TYCON "exn"
 fun funtype (param, result) = CONAPP (TYCON "function", CONAPP (param, result))
@@ -651,7 +652,8 @@ fun typeof (e, Gamma : typeScheme env, Delta : typeScheme env) : ty * con =
 
 	fun constant (BOOL _) = (booltype, TRIVIAL)
 	  | constant (NUM  _) = (inttype,  TRIVIAL)
-	  | constant (UNIT)    = (unittype, TRIVIAL)
+	  | constant (CHAR _) = (chartype, TRIVIAL)
+	  | constant (UNIT)   = (unittype, TRIVIAL)
 	  | constant _ = raise ShouldNotHappen "typecheck non instantiatable constant"
 
 	fun declOfVariant field =
@@ -790,6 +792,7 @@ exception MalformedList
 fun valueString (UNIT) = "unit"
   | valueString (BOOL b) = if b then "true" else "false"
   | valueString (NUM n) = Int.toString n
+  | valueString (CHAR c) = "'" ^ Char.toString c ^ "'"
   | valueString (CLOSURE _) = "fn"
   | valueString (RECORD _) = "record"
   | valueString (v as VARIANT _) =

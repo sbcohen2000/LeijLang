@@ -9,11 +9,13 @@ structure Tokens =
 struct
 type location = int * int
 datatype payload = STRING of string
+		 | CHR of char
 		 | INT of int
 		 | EMPTY
 datatype token = TOKEN of kind * location * payload
      and kind = NAME        (* constants *)
 	      | NUMBER
+	      | CHAR
 	      | QUOTE
 	      | TRUE
 	      | FALSE
@@ -83,6 +85,9 @@ fun isEOF (TOKEN (EOF, _, _)) = true
 fun stringOf (TOKEN (_, _, STRING s)) = SOME s
   | stringOf _ = NONE
 
+fun charOf (TOKEN (_, _, CHR c)) = SOME c
+  | charOf _ = NONE
+		     
 fun intOf (TOKEN (_, _, INT i)) = SOME i
   | intOf _ = NONE
 		  
@@ -141,6 +146,7 @@ fun isAllowedQuoteChar c = Char.isAscii c
 			   andalso not (c = #"(")
 			   andalso not (c = #")")
 			   andalso not (c = #",")
+			   andalso not (c = #"'")
 			   andalso not (Char.isSpace c)
 
 fun keyword lexer =
@@ -181,10 +187,23 @@ fun name lexer =
     in (newLexer, SOME (TOKEN (NAME, locationOf lexer, STRING nameStr)))
     end
 
+fun charLiteral lexer =
+    let val gotEscape = peek lexer = #"\\"
+    in if gotEscape then (lexer, NONE) (* TODO: parse escaped chars *)
+       else let val contents = peek lexer
+		val newLexer = consume lexer
+	    in if peek newLexer = #"'"
+	       then (consume newLexer,
+		     SOME (TOKEN (CHAR, locationOf lexer, CHR contents)))
+	       else (lexer, NONE)
+	    end
+    end
+	
 fun quote lexer =
     let val newLexer = consumeWhile isAllowedQuoteChar lexer
 	val (_, quoteStr, _) = newLexer
-    in (newLexer, SOME (TOKEN (QUOTE, locationOf lexer, STRING quoteStr)))
+    in if peek newLexer = #"'" then (lexer, NONE) (* quotes can't end in ' *)
+       else (newLexer, SOME (TOKEN (QUOTE, locationOf lexer, STRING quoteStr)))
     end
 
 fun number lexer =
@@ -270,7 +289,8 @@ fun nextToken lexer =
 	     of NONE =>
 		let fun mkToken v = SOME (TOKEN (v, (locationOf lexer), EMPTY))
 		in (case char
-		     of #"." => (lexer, mkToken         DOT)
+		     of #"'" => charLiteral lexer
+		      | #"." => (lexer, mkToken         DOT)
 		      | #";" => (lexer, mkToken   SEMICOLON)
 		      | #"," => (lexer, mkToken       COMMA)
 		      | #"|" => if peek lexer = #"|" then
@@ -319,6 +339,7 @@ fun nextToken lexer =
 
 fun kindString NAME        = "name"
   | kindString NUMBER      = "number"
+  | kindString CHAR        = "char"
   | kindString QUOTE       = "quote"
   | kindString TRUE        = "`true'"
   | kindString FALSE       = "`false'"
@@ -367,6 +388,7 @@ fun kindString NAME        = "name"
 fun tokenString t =
     let val TOKEN (kind, _, payload) = t
 	val payloadString = case payload of STRING s => " \"" ^ s ^ "\""
+					  | CHR c => " '" ^ Char.toString c ^ "'"
 					  | INT i => " (" ^ Int.toString i ^ ")"
 					  | EMPTY => ""
     in kindString kind ^ payloadString
