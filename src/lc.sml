@@ -70,6 +70,13 @@ datatype con = TRIVIAL
 infix 4 ~
 infix 3 /\
 
+
+fun projectBool (BOOL false) = false
+  | projectBool _            = true
+
+fun projectNum (NUM n) = n
+  | projectNum _ = raise ShouldNotHappen "NUM projection failed"
+
 (*                         ------ ENVIRONMENTS ------                         *)
 type 'a env = (string * 'a) list
 
@@ -818,7 +825,7 @@ fun eval (e, Rho : value ref env) =
 	    in eval (body, bind Rho (name, (ref o ev) e))
 	    end
 	  | ev (IF (cond, trueE, falseE)) =
-	    ev (if ev cond = (BOOL true) then trueE else falseE)
+	    ev (if projectBool (ev cond) then trueE else falseE)
 	  | ev (DOT (e, field)) =
 	    let val records = case ev e
 			       of RECORD records => records
