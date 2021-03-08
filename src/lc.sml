@@ -256,6 +256,7 @@ fun expand (MATCH (e, cases)) =
 					      | [] => (CONST UNIT, [])
     in List.foldl LET body bindings
     end
+  | expand (STRING s) = raise Unimplemented "expand string"
 		   
 and desugar (e as CONST _)        = e
   | desugar (e as VAR _)          = e

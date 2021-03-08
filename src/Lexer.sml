@@ -16,6 +16,7 @@ datatype token = TOKEN of kind * location * payload
      and kind = NAME        (* constants *)
 	      | NUMBER
 	      | CHAR
+	      | STRING
 	      | QUOTE
 	      | TRUE
 	      | FALSE
@@ -198,6 +199,13 @@ fun charLiteral lexer =
 	       else (lexer, NONE)
 	    end
     end
+
+fun stringLiteral lexer =
+    let val newLexer = consumeWhile (fn c => not (c = #"\"")) lexer
+	val (_, str, _) = newLexer
+	val newLexer = consume newLexer (* consume closing " *)
+    in (newLexer, SOME (TOKEN (STRING, locationOf lexer, STR_VAL str)))
+    end
 	
 fun quote lexer =
     let val newLexer = consumeWhile isAllowedQuoteChar lexer
@@ -290,6 +298,7 @@ fun nextToken lexer =
 		let fun mkToken v = SOME (TOKEN (v, (locationOf lexer), EMPTY))
 		in (case char
 		     of #"'" => charLiteral lexer
+		      | #"\"" => stringLiteral lexer
 		      | #"." => (lexer, mkToken         DOT)
 		      | #";" => (lexer, mkToken   SEMICOLON)
 		      | #"," => (lexer, mkToken       COMMA)
@@ -340,6 +349,7 @@ fun nextToken lexer =
 fun kindString NAME        = "name"
   | kindString NUMBER      = "number"
   | kindString CHAR        = "char"
+  | kindString STRING      = "string"
   | kindString QUOTE       = "quote"
   | kindString TRUE        = "`true'"
   | kindString FALSE       = "`false'"

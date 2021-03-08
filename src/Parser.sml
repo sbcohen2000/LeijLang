@@ -223,7 +223,7 @@ local fun oneOf _ [] = false
 in fun isConstStarter token =
        let open Tokens
 	   val oneOf = oneOf (Tokens.kindOf token)
-       in oneOf [NUMBER, CHAR, TRUE, FALSE, UNIT, OPENSQUARE, OPENCURLY]
+       in oneOf [NUMBER, CHAR, STRING, TRUE, FALSE, UNIT, OPENSQUARE, OPENCURLY]
        end
 
    fun isExprStarter token =
@@ -397,13 +397,16 @@ and constExpr p =
 	val possibleChar = extractChar p
 	val (gotChar, p) = consumeIf (notAnyOf [gotNum]) p Tokens.CHAR
 	val (e, p) = if gotChar then (SOME (CONST (CHAR possibleChar)), p) else (e, p)
-	val (gotTrue, p) = consumeIf (notAnyOf [gotNum, gotChar]) p Tokens.TRUE
+	val possibleString = extractString p
+	val (gotString, p) = consumeIf (notAnyOf [gotNum, gotChar]) p Tokens.STRING
+	val (e, p) = if gotString then (SOME (SUGAR (STRING possibleString)), p) else (e, p)
+	val (gotTrue, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString]) p Tokens.TRUE
 	val (e, p) = if gotTrue then (SOME (CONST (BOOL true)), p) else (e, p)
-	val (gotFalse, p) = consumeIf (notAnyOf [gotNum, gotChar, gotTrue]) p Tokens.FALSE
+	val (gotFalse, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString, gotTrue]) p Tokens.FALSE
 	val (e, p) = if gotFalse then (SOME (CONST (BOOL false)), p) else (e, p)
-	val (gotUnit, p) = consumeIf (notAnyOf [gotNum, gotChar, gotTrue, gotFalse]) p Tokens.UNIT
+	val (gotUnit, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString, gotTrue, gotFalse]) p Tokens.UNIT
 	val (e, p) = if gotUnit then (SOME (CONST UNIT), p) else (e, p)
-	val (gotSquare, p) = consumeIf (notAnyOf [gotNum, gotChar, gotTrue, gotFalse]) p Tokens.OPENSQUARE
+	val (gotSquare, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString, gotTrue, gotFalse]) p Tokens.OPENSQUARE
 	val (e, p) = if gotSquare 
 		     then let val isEmpty = Tokens.kindOf (peek p) = Tokens.CLOSESQUARE
 			      val (es, p) = if isEmpty then ([], p) else listExpr p
@@ -411,7 +414,7 @@ and constExpr p =
 			  in (SOME (SUGAR (LIST es)), p)
 			  end
 		     else (e, p)
-	val (gotCurly, p) = consumeIf (notAnyOf [gotNum, gotChar, gotTrue, gotFalse, gotSquare]) p Tokens.OPENCURLY
+	val (gotCurly, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString, gotTrue, gotFalse, gotSquare]) p Tokens.OPENCURLY
 	val (e, p) = if gotCurly
 		     then let val (records, p) = recordExpr p
 			      val p = expect p Tokens.CLOSECURLY

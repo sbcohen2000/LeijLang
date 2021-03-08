@@ -41,6 +41,7 @@ datatype decl = VAL of string * exp
      and sugar = MATCH of exp * (string * string * exp) list
 	       | LIST of exp list
 	       | BLOCK of decl list
+	       | STRING of string
 withtype lam = string * exp
 
 end
