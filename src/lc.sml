@@ -70,6 +70,12 @@ datatype con = TRIVIAL
 infix 4 ~
 infix 3 /\
 
+local
+    val n = ref 1
+in fun freshtyname _ = "'t" ^ Int.toString (!n) before n := !n + 1
+   fun freshtyvar _ = TYVAR (freshtyname ())
+end
+
 (*                         ------ PROJECTIONS ------                          *)
 
 fun projectBool (BOOL false) = false
@@ -117,17 +123,21 @@ val booltype = TYCON "bool"
 val inttype  = TYCON "int"
 val chartype = TYCON "char"
 val unittype = TYCON "unit"
-val exntype = TYCON "exn"
+val exntype  = TYCON "exn"
+fun vectortype tau = CONAPP (TYCON "vector", tau)
 fun funtype (param, result) = CONAPP (TYCON "function", CONAPP (param, result))
 fun rowtype (record as (label, t), ext) = TYROW (record, ext)
 val emptyrow = TYEMPTYROW
 
-fun listtype ty = MU ("'a", CONAPP (TYCON "variant",
-				    rowtype (("CONS",
-					      CONAPP (TYCON "record",
-						      rowtype (("car", ty),
-							       rowtype (("cdr", TYVAR "'a"), TYEMPTYROW)))),
-					     rowtype (("NIL", unittype), TYEMPTYROW))))
+fun listtype ty =
+    let val tyvar = freshtyname ()
+    in MU (tyvar, CONAPP (TYCON "variant",
+			  rowtype (("CONS",
+				    CONAPP (TYCON "record",
+					    rowtype (("car", ty),
+						     rowtype (("cdr", TYVAR tyvar), TYEMPTYROW)))),
+				   rowtype (("NIL", unittype), TYEMPTYROW))))
+    end
 		   
 fun arityTwoPrim (argATau, argBTau, retTau, f) =
     ABS ("a", ABS ("b", RAW (retTau, [(argATau, VAR "a"), (argBTau, VAR "b")], f)))
@@ -213,11 +223,6 @@ val emptySet = []
 
 (*                            ------ DESUGAR ------                           *)
 
-local
-    val n = ref 1
-in fun freshtyvar _ = TYVAR ("'t" ^ Int.toString (!n) before n := !n + 1)
-end
-    
 fun expand (MATCH (e, cases)) =
     let val n = ref 1
 	(* since the source program can't have variables starting with numbers, 
@@ -1016,9 +1021,7 @@ fun processDef (VAL (name, rawExpr), flags, Gamma, Rho, Delta) =
 		then raise TypeError "tyvar mismatch in variant"
 		else ()
 	val tau = if isRectype (name, rawTau) then
-		      let val recVar = case freshtyvar () of TYVAR a => a
-							   | _ => raise ShouldNotHappen
-									"freshtyvar gave non-tyvar"
+		      let val recVar = freshtyname ()
 			  val recTau = MU (recVar, replaceTycon (name, rawTau, TYVAR recVar))
 		      in recTau
 		      end
