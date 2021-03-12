@@ -1059,7 +1059,7 @@ fun evalFile (filename, (Gamma, Rho, Delta)) =
 					    processDef (dec, flags, Gamma, Rho, Delta))
 					("", Gamma, Rho, emptyEnv) ds
 			   | NONE => ("", Gamma, Rho, emptyEnv))
-	      handle e => (recover e, Gamma, Rho, emptyEnv)
+	      handle e => ("", Gamma, Rho, emptyEnv) before print (recover e ^ "\n")
     in (Gamma', Rho', Delta)
     end
 	
