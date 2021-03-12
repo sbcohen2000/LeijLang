@@ -189,7 +189,22 @@ fun gets args = case args of [a] => let val line = case TextIO.inputLine TextIO.
 				    in embedList list
 				    end
 			   | _ => raise badArity
-					  
+					
+fun itos args = case args of [NUM a] => let val list = String.explode (Int.toString a)
+					    val list = List.map CHAR list
+					in embedList list
+					end
+			   | _ => raise badArity
+
+fun listToVec args = case args of [a] => let val list = projectList a
+					     val vec = Vector.fromList list
+					 in VECTOR vec
+					 end
+				| _ => raise badArity
+
+fun at args = case args of [VECTOR v, NUM idx] => Vector.sub (v, idx)
+			 | _ => raise badArity
+
 val primitives =
     [("=", arityTwoPrim (inttype, inttype, booltype, primEq)),
      ("+", arityTwoPrim (inttype, inttype, inttype, primAdd)),
@@ -208,9 +223,18 @@ val primitives =
 			       puts))),
      ("gets", ABS ("a", RAW (listtype chartype,
 			     [(unittype, VAR "a")],
-			     gets)))]
-     
-	
+			     gets))),
+     ("itos", ABS ("a", RAW (listtype chartype,
+			     [(inttype, VAR "a")],
+			     itos))),
+     ("listToVec", ABS ("a", RAW (vectortype (TYVAR "alpha"),
+				  [(listtype (TYVAR "alpha"), VAR "a")],
+				  listToVec))),
+     ("at", ABS ("v", ABS ("idx", RAW (TYVAR "alpha",
+				       [(vectortype (TYVAR "alpha"), VAR "v"),
+					(inttype, VAR "idx")],
+				       at))))]
+ 	
 (*                             ------ SETS ------                             *)
 type 'a set = 'a list
 fun member x = List.exists (fn y => y = x)
