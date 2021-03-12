@@ -299,6 +299,14 @@ and term p =
 	    in (SOME (EXN raiseText), p)
 	    end
 
+	fun vectorIndex (e, p) =
+	    let val p' = expect p Tokens.OPENSQUARE
+		val (idxE, p') = expr p'
+		val (gotClose, p') = consume p' Tokens.CLOSESQUARE
+	    in if gotClose then (APP (APP (VAR "at", e), idxE), p')
+	       else (e, p) (* we got a list literal, not an index *)
+	    end
+
 	val (gotParen, p) = consume p Tokens.OPENROUND
 	val (e, p) = if gotParen 
 		     then groupExpr p else (NONE, p)
@@ -341,6 +349,8 @@ and term p =
 			     | NONE => raise SyntaxError ("Unexpected " ^
 							  Lexer.tokenString (peek p) ^
 							  " in expression")
+	val gotBracket = Tokens.kindOf (peek p) = Tokens.OPENSQUARE
+	val (e, p) = if gotBracket then vectorIndex (e, p) else (e, p)
 	val gotInfix = isInfixStarter (peek p)
 	val (e, p) = if gotInfix then infixExpr (e, p) else (e, p)
     in (e, p)

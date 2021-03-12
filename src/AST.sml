@@ -38,6 +38,7 @@ datatype decl = VAL of string * exp
 	       | CLOSURE of lam * value ref env
 	       | RECORD of (string * value) list
 	       | VARIANT of string * value
+	       | VECTOR of value vector
      and sugar = MATCH of exp * (string * string * exp) list
 	       | LIST of exp list
 	       | BLOCK of decl list

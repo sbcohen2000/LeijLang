@@ -99,7 +99,11 @@ fun embedList ([]) = VARIANT ("NIL", UNIT)
   | embedList (v::vs) = VARIANT ("CONS",
 				 RECORD ([("cdr", embedList vs), ("car", v)]))
 
+fun projectVector (VECTOR v) = v
+  | projectVector _ = raise ShouldNotHappen "VECTOR projection failed"
+
 (*                         ------ ENVIRONMENTS ------                         *)
+			    
 type 'a env = (string * 'a) list
 
 fun bind e (name, value) = (name, value)::e
@@ -619,7 +623,7 @@ in fun typeString (tau, Delta) =
 	     | ts (r as CONAPP (TYCON "record", _)) = recordString (r, Delta)
 	     | ts (v as CONAPP (TYCON "variant", _)) = variantString (v, Delta)
 	     | ts (CONAPP (ta, tb)) =
-	       ts ta ^ " -> " ^ ts tb
+	       ts tb ^ " " ^ ts ta
 	     | ts (tau as MU (var, t)) =
 	       "mu." ^ var ^ " [" ^ ts t ^ "]"
 	     | ts (TYROW ((label, t), ext)) =
@@ -701,10 +705,15 @@ fun typeof (e, Gamma : typeScheme env, Delta : typeScheme env) : ty * con =
 	    in (tau::taus, c /\ c')
 	    end
 
-	fun constant (BOOL _) = (booltype, TRIVIAL)
-	  | constant (NUM  _) = (inttype,  TRIVIAL)
-	  | constant (CHAR _) = (chartype, TRIVIAL)
-	  | constant (UNIT)   = (unittype, TRIVIAL)
+	fun constant (UNIT)     = (unittype, TRIVIAL)
+	  | constant (BOOL _)   = (booltype, TRIVIAL)
+	  | constant (NUM  _)   = (inttype,  TRIVIAL)
+	  | constant (CHAR _)   = (chartype, TRIVIAL)
+	  | constant (VECTOR v) = let val asList = Vector.foldr (op ::) [] v
+				      val asExprs = List.map CONST asList
+				      val (taus, Con) = typesof (asExprs, Gamma)
+				  in (booltype, TRIVIAL)
+				  end
 	  | constant _ = raise ShouldNotHappen "typecheck non instantiatable constant"
 
 	fun declOfVariant field =
@@ -845,9 +854,14 @@ fun valueString (UNIT) = "unit"
   | valueString (CLOSURE _) = "fn"
   | valueString (RECORD _) = "record"
   | valueString (v as VARIANT _) =
-    case asList v of SOME str => str
-		   | NONE => "union"
-
+    (case asList v of SOME str => str
+		    | NONE => "union")
+  | valueString (VECTOR v) =
+    let val asList = Vector.foldr (op ::) [] v
+	val valueStrings = List.map valueString asList
+    in "v[" ^ injectBetween ", " valueStrings ^ "]"
+    end
+			 
 and asList (l as VARIANT ("CONS", listElems)) =
     let val listElems = SOME (projectList l)
 			handle MalformedList => NONE
