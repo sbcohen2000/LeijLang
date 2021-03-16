@@ -291,20 +291,27 @@ fun expand (MATCH (e, cases)) =
 	 fn (e, rest) => APP (VAR "CONS", RECORD_LITERAL [("car", e), ("cdr", rest)])
     in List.foldr createConsCell (APP (VAR "NIL", CONST UNIT)) desugaredEs
     end
+  | expand (BLOCK []) = CONST UNIT
   | expand (BLOCK ds) =
-    let fun valToBinding (VAL ("_", e)) = ("_", e)
-	  | valToBinding (VAL (nm,  e)) = (nm,  e)
-	  | valToBinding _ = raise ShouldNotHappen "Non-val declarations are not allowed in BLOCK"
-	fun desugarBinding (nm, e) = (nm, desugar e)
-	val bindings = List.map (desugarBinding o valToBinding) (List.rev ds)
-	(* note that list of bindings is reversed, so the first
-         * element is actually the last *)
-	val (body, bindings) = case bindings of (("_", bdg)::rest) => (bdg, rest)
-					      | (_::rest) => (CONST UNIT, [])
-					      | [] => (CONST UNIT, [])
-    in List.foldl LET body bindings
+    let fun valsToDesugaredPairs ((VAL (nm, e))::ds) = (nm, desugar e)::(valsToDesugaredPairs ds)
+	  | valsToDesugaredPairs (_::ds) = valsToDesugaredPairs ds
+	  | valsToDesugaredPairs [] = []
+
+	fun chopEnd (last::[]) = ([], last)
+	  | chopEnd (elem::rest) =
+	    let val (elems, last) = chopEnd rest
+	    in (elem::elems, last)
+	    end
+	  | chopEnd [] = raise ShouldNotHappen "chopEnd got empty list"
+				 
+	val (bindings, (_, returnExp)) = chopEnd (valsToDesugaredPairs ds)
+    in List.foldr LET returnExp bindings
     end
-  | expand (STRING s) = raise Unimplemented "expand string"
+  | expand (STRING s) =
+    let val charVect = Vector.fromList (String.explode s)
+	val embeddedCharVect = Vector.map CHAR charVect
+    in CONST (VECTOR embeddedCharVect)
+    end
 		   
 and desugar (e as CONST _)        = e
   | desugar (e as VAR _)          = e
@@ -572,7 +579,7 @@ fun roll tau =
 
 datatype brokenConstraint = UNEQUAL of ty * ty
 			  | MISSING of string
-					   
+
 exception UnsatisfiableConstraint of brokenConstraint
 fun solve c =
     let fun solveRow (TYROW ((l, _), _), TYEMPTYROW) =
