@@ -758,7 +758,10 @@ fun typeof (e, Gamma : typeScheme env, Delta : typeScheme env) : ty * con =
 	  | constant (VECTOR v) = let val asList = Vector.foldr (op ::) [] v
 				      val asExprs = List.map CONST asList
 				      val (taus, Con) = typesof (asExprs, Gamma)
-				  in (booltype, TRIVIAL)
+				      val first = case taus of (fst::rest) => SOME fst
+							     | _ => NONE
+				  in case first of SOME fst => (vectortype fst, Con)
+						 | NONE => (vectortype (freshtyvar ()), Con)
 				  end
 	  | constant _ = raise ShouldNotHappen "typecheck non instantiatable constant"
 
