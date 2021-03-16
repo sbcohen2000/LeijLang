@@ -201,7 +201,9 @@ fun charLiteral lexer =
     end
 
 fun stringLiteral lexer =
-    let val newLexer = consumeWhile (fn c => not (c = #"\"")) lexer
+    let val (src, s, loc) = lexer
+	val newLexer = (src, "", loc) (* remove open quote from token contents *)
+	val newLexer = consumeWhile (fn c => not (c = #"\"")) newLexer
 	val (_, str, _) = newLexer
 	val newLexer = consume newLexer (* consume closing " *)
     in (newLexer, SOME (TOKEN (STRING, locationOf lexer, STR_VAL str)))
@@ -210,7 +212,8 @@ fun stringLiteral lexer =
 fun quote lexer =
     let val newLexer = consumeWhile isAllowedQuoteChar lexer
 	val (_, quoteStr, _) = newLexer
-    in if quoteStr = "'" orelse peek newLexer = #"'" then (lexer, NONE) (* quotes can't end in ' *)
+    in if quoteStr = "'" orelse peek newLexer = #"'"
+       then (lexer, NONE) (* quotes can't end in ' *)
        else (newLexer, SOME (TOKEN (QUOTE, locationOf lexer, STR_VAL quoteStr)))
     end
 
@@ -339,7 +342,7 @@ fun nextToken lexer =
 
     in case possibleToken of SOME t => (t, lexer)
 			   | NONE => (TOKEN (ERROR, locationOf lexer,
-					     STR_VAL 
+					     STR_VAL
 						 ("illegal char: \"" ^
 						  Char.toString char ^
 						  "\"")), lexer)
