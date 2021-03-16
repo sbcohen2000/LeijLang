@@ -1116,14 +1116,14 @@ fun evalFile (filename, (Gamma, Rho, Delta)) =
 	val basisText = readFileIntoString filename
 	val decls = SOME (parse basisText)
 		    handle Parser.SyntaxError msg => NONE before print msg
-	val (_, Gamma', Rho', Delta)
+	val (_, Gamma', Rho', Delta')
 	    = (case decls of SOME ds =>
 			     List.foldl (fn (dec, (str, Gamma, Rho, Delta)) =>
 					    processDef (dec, flags, Gamma, Rho, Delta))
-					("", Gamma, Rho, emptyEnv) ds
-			   | NONE => ("", Gamma, Rho, emptyEnv))
-	      handle e => ("", Gamma, Rho, emptyEnv) before print (recover e ^ "\n")
-    in (Gamma', Rho', Delta)
+					("", Gamma, Rho, Delta) ds
+			   | NONE => ("", Gamma, Rho, Delta))
+	      handle e => ("", Gamma, Rho, Delta) before print (recover e ^ "\n")
+    in (Gamma', Rho', Delta')
     end
 	
 fun REPL (flags, (Gamma, Rho, Delta)) =
