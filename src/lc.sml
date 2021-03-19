@@ -70,7 +70,6 @@ fun rawTypeString tau =
 	  | ts (TYROW ((label, t), ext)) =
 	    "(" ^ label ^ " :: " ^ ts t ^ " | " ^ ts ext ^ ")"
 	  | ts (TYEMPTYROW) = "[]"
-	  | ts (TYUNR t) = "UNR (" ^ rawTypeString t ^ ")"
     in ts tau
     end
 
@@ -361,7 +360,7 @@ fun freetyvarsInType (tau : ty) : string set =
     let fun f (TYVAR v,              ftvs) = insert (v, ftvs)
 	  | f (TYCON _,              ftvs) = ftvs
 	  | f (CONAPP (ta, tb),      ftvs) = union (f (ta, ftvs), f (tb, ftvs))
-	  | f (MU (v, t),            ftvs) = diff (f(t, ftvs), insert (v, emptySet))
+	  | f (MU (v, t),            ftvs) = diff (f (t, ftvs), insert (v, emptySet))
 	  | f (TYROW ((_, t),  ext), ftvs) = union (f (t, ftvs), f (ext, ftvs))
 	  | f (TYEMPTYROW,           ftvs) = ftvs
     in f (tau, emptySet)
@@ -640,11 +639,11 @@ fun solve c =
 					
 	    in (compose (solve (t ~ t' /\ r ~ s'), theta1))
 	    end
-	  | solveEq (MU (t, tau), MU (t', tau')) = solve ((TYVAR t) ~ (TYVAR  t') /\ tau ~ tau')
-	  | solveEq (rectype as MU _, t) = solve (unroll rectype ~ t)
-	  | solveEq (t, rectype as MU _) = solve (t ~ unroll rectype)
+	  | solveEq (MU (t, tau), MU (t', tau')) = solve (TYVAR t ~ TYVAR t' /\ tau ~ tau')
+	  | solveEq (mu as MU _, t) = solveEq (unroll mu, t)
+	  | solveEq (t, mu as MU _) = solveEq (t, unroll mu)
 	  | solveEq (ta, tb) = raise UnsatisfiableConstraint (UNEQUAL (ta, tb))
-						       
+				     
 	fun solveCon (c1, c2) =
 	    let val theta1 = solve c1
 		val appliedTheta1 = consubst theta1 c2
@@ -816,18 +815,18 @@ fun typeof (e, Gamma : typeScheme env, Delta : typeScheme env) : ty * con =
 		val fieldTau = freshtyvar ()
 		val paramTau = CONAPP (TYCON "record",
 				       rowtype ((field, fieldTau), restTau))
-		val (recordTau, con) = ty e
-	    in (fieldTau, con /\ paramTau ~ recordTau)
+		val (recordTau, Con) = ty e
+	    in (fieldTau, Con /\ paramTau ~ recordTau)
 	    end
 	  | ty (INJ (field, e)) =
 	    (* simulates call to forall [a, r] a -> < field : a | r > *)
 	    let val restTau = freshtyvar ()
 		val fieldTau = freshtyvar ()
 		val resultTau = CONAPP (TYCON "variant",
-					rowtype ((field, fieldTau), restTau))
+					rowtype ((field, fieldTau), restTau)) (* roll this? *)
 		val declTau = declOfVariant field
 		val (valueTau, Con) = ty e
-	    in (resultTau, Con /\ fieldTau ~ valueTau /\ resultTau ~ declTau)
+	    in (declTau, Con /\ fieldTau ~ valueTau /\ resultTau ~ (unroll declTau))
 	    end
 	  | ty (DEC (field, variant, match, noMatch)) =
 	    (* simulates call to forall [a, B, r] < field : a | r >
@@ -1032,8 +1031,8 @@ fun replaceTycon (name, ty, replacement) =
 	  | subst (t as TYCON s) = if s = name then replacement else t
 	  | subst (CONAPP (ta, tb)) = CONAPP (subst ta, subst tb)
 	  | subst (t as MU _) = t
-	  | subst (t as TYEMPTYROW) = t
 	  | subst (TYROW ((f, ta), tb)) = TYROW ((f, subst ta), subst tb)
+	  | subst (t as TYEMPTYROW) = t
     in subst ty
     end
 
