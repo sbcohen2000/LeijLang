@@ -1,0 +1,11 @@
+/* @description: can desugar and evaluate basic block expressions
+ * @output: 16
+ */
+
+val num = {
+	val q = 10;
+	val r = q + 5;
+	r + 1;
+    };
+
+val unit = puts (itos num);
