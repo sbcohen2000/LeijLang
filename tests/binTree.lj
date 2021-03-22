@@ -1,0 +1,39 @@
+/* @description: can create a binary tree using union definitions
+ * @output: 1
+ *
+ */
+
+union 'a binTree = NODE of { data = 'a, left = binTree, right = binTree } | LEAF;
+
+fun insert elem tree = match tree
+		       with NODE contents =>
+			    if elem < contents.data then
+				NODE { data = contents.data,
+				       left = insert elem contents.left,
+				       right = contents.right }
+			    else
+				NODE { data = contents.data,
+				       left = contents.left,
+				       right = insert elem contents.right }
+			    | LEAF n => NODE { data = elem,
+					       left = LEAF (),
+					       right = LEAF () };
+
+fun leftmostNode tree = match tree
+			with NODE contents =>
+			     (match contents.data
+			      with NODE n => leftmostNode contents.left
+				   | LEAF n => contents.data)
+			     | LEAF n => raise emptyTree;
+
+fun insertAll l t =
+    match l with CONS pair => insert pair.car (insertAll pair.cdr t)
+		 | NIL n => t;
+
+
+val x = {
+	val list = [5, 4, 2, 1, 10, 3];
+	val tree = insertAll list (LEAF ());
+	val min = leftmostNode tree;
+	puts (itos min);
+    };

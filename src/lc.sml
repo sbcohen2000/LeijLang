@@ -594,13 +594,12 @@ fun solve c =
 					  | _ => raise ShouldNotHappen "solveRow returned non-row"
 		 in (tau, theta)
 		 end
-	  | solveRow (TYROW ((label, tau), _), TYVAR alpha) =
-	    let val gamma = freshtyvar ()
-		val beta = freshtyvar ()
+	  | solveRow (TYVAR alpha, TYROW ((label, _), _)) =
+	    let val beta = freshtyvar ()
+		val gamma = freshtyvar ()
 		val tau = TYROW ((label, gamma), beta)
 	    in (tau, mapsTo (alpha, tau))
 	    end
-	  | solveRow (TYVAR alpha, r as TYROW _) = solveRow (r, TYVAR alpha)
 	  | solveRow (ta, tb) =
 	    raise ShouldNotHappen "solveRow got unexpected inputs"
 
@@ -636,8 +635,7 @@ fun solve c =
 			    then raise UnsatisfiableConstraint (UNEQUAL (TYROW ((l, t), r), s))
 			    else ()
 			  | NONE => ()
-					
-	    in (compose (solve (t ~ t' /\ r ~ s'), theta1))
+	    in compose (solve (t ~ t' /\ r ~ s'), theta1)
 	    end
 	  | solveEq (MU (t, tau), MU (t', tau')) = solve (TYVAR t ~ TYVAR t' /\ tau ~ tau')
 	  | solveEq (mu as MU _, t) = solveEq (unroll mu, t)
