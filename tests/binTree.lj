@@ -21,7 +21,7 @@ fun insert elem tree = match tree
 
 fun leftmostNode tree = match tree
 			with NODE contents =>
-			     (match contents.data
+			     (match contents.left
 			      with NODE n => leftmostNode contents.left
 				   | LEAF n => contents.data)
 			     | LEAF n => raise emptyTree;

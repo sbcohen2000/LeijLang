@@ -12,7 +12,8 @@ type 'a env = (string * 'a) list
 datatype ty = TYVAR of string
 	    | TYCON of string
 	    | CONAPP of ty * ty
-	    | MU of string * ty
+	    | MU of ty
+	    | RECVAR of ty ref
 	    | TYEMPTYROW
 	    | TYROW of (string * ty) * ty
 			    

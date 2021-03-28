@@ -14,12 +14,11 @@
  *)
 
 open AST
-
 exception TypeError of string
 exception ShouldNotHappen of string
 exception Unimplemented of string
 exception RuntimeError of string
-		       
+			      
 fun injectBetween s [] = ""
   | injectBetween s (fst::[]) = fst
   | injectBetween s (fst::rest) = fst ^ s ^ injectBetween s rest
@@ -65,8 +64,9 @@ fun rawTypeString tau =
 	  | ts (TYCON s) = s
 	  | ts (CONAPP (ta, tb)) =
 	    ts tb ^ " " ^ ts ta
-	  | ts (tau as MU (var, t)) =
-	    "mu." ^ var ^ " [" ^ ts t ^ "]"
+	  | ts (MU t) =
+	    "mu[" ^ ts t ^ "]"
+	  | ts (RECVAR s) = "*mu"
 	  | ts (TYROW ((label, t), ext)) =
 	    "(" ^ label ^ " :: " ^ ts t ^ " | " ^ ts ext ^ ")"
 	  | ts (TYEMPTYROW) = "[]"
@@ -86,8 +86,7 @@ infix 3 /\
 
 local
     val n = ref 1
-in fun freshtyname _ = "'t" ^ Int.toString (!n) before n := !n + 1
-   fun freshtyvar _ = TYVAR (freshtyname ())
+in fun freshtyvar _ = TYVAR ("'t" ^ Int.toString (!n)) before n := !n + 1
 end
 
 (*                         ------ PROJECTIONS ------                          *)
@@ -148,13 +147,14 @@ fun rowtype (record as (label, t), ext) = TYROW (record, ext)
 val emptyrow = TYEMPTYROW
 
 fun listtype ty =
-    let val tyvar = freshtyname ()
-    in MU (tyvar, CONAPP (TYCON "variant",
-			  rowtype (("CONS",
-				    CONAPP (TYCON "record",
-					    rowtype (("car", ty),
-						     rowtype (("cdr", TYVAR tyvar), TYEMPTYROW)))),
-				   rowtype (("NIL", unittype), TYEMPTYROW))))
+    let val recvar = ref TYEMPTYROW
+	val tau = MU (CONAPP (TYCON "variant",
+			      rowtype (("CONS",
+					CONAPP (TYCON "record",
+						rowtype (("car", ty),
+							 rowtype (("cdr", RECVAR recvar), TYEMPTYROW)))),
+				       rowtype (("NIL", unittype), TYEMPTYROW))))
+    in tau before recvar := tau
     end
 		   
 fun arityTwoPrim (argATau, argBTau, retTau, f) =
@@ -342,7 +342,7 @@ fun findVariant Delta field =
     let fun hasLabel (TYROW ((l, _), rest), label) =
 	    l = label orelse hasLabel (rest, label)
 	  | hasLabel _ = false
-	fun hasVariant (MU (_, CONAPP (TYCON "variant", row as TYROW _))) =
+	fun hasVariant (MU (CONAPP (TYCON "variant", row as TYROW _))) =
 	    hasLabel (row, field)
 	  | hasVariant (CONAPP (TYCON "variant", row as TYROW _)) =
 	    hasLabel (row, field)
@@ -360,7 +360,8 @@ fun freetyvarsInType (tau : ty) : string set =
     let fun f (TYVAR v,              ftvs) = insert (v, ftvs)
 	  | f (TYCON _,              ftvs) = ftvs
 	  | f (CONAPP (ta, tb),      ftvs) = union (f (ta, ftvs), f (tb, ftvs))
-	  | f (MU (v, t),            ftvs) = diff (f (t, ftvs), insert (v, emptySet))
+	  | f (MU t,                 ftvs) = f (t, ftvs)
+	  | f (RECVAR _,             ftvs) = ftvs (* recvars are never free *)
 	  | f (TYROW ((_, t),  ext), ftvs) = union (f (t, ftvs), f (ext, ftvs))
 	  | f (TYEMPTYROW,           ftvs) = ftvs
     in f (tau, emptySet)
@@ -381,11 +382,6 @@ fun bindtyscheme (name   : string,
 		  scheme : typeScheme,
 		  Gamma  : typeScheme env) : typeScheme env  =
     bind Gamma (name, scheme)
-
-local
-    val n = ref 1
-in fun freshtyvar _ = TYVAR ("'t" ^ Int.toString (!n) before n := !n + 1)
-end
 
 fun labelsInType (tau : ty) : string set =
     let fun f (TYROW ((l, _), ext), ls) = f (ext, insert (l, ls))
@@ -412,7 +408,7 @@ fun labelsInType (tau : ty) : string set =
     
 fun varsubst theta =
     (fn a => find theta a handle NotFound => TYVAR a)
-	
+
 (*
  * tysubst
  *
@@ -421,12 +417,13 @@ fun varsubst theta =
  *)
 	
 fun tysubst theta =
-    let fun subst (TYVAR a) = varsubst theta a
-	  | subst (TYCON c) = TYCON c
-	  | subst (CONAPP (ta, tb)) = CONAPP (subst ta, subst tb)
-	  | subst (MU (v, t)) = MU (v, subst t)
+    let fun subst (TYVAR v)             = varsubst theta v
+	  | subst (TYCON c)             = TYCON c
+	  | subst (CONAPP (ta, tb))     = CONAPP (subst ta, subst tb)
+	  | subst (MU t)                = MU (subst t)
+	  | subst (RECVAR v)            = RECVAR v
 	  | subst (TYROW ((l, t), ext)) = TYROW ((l, subst t), subst ext)
-	  | subst (TYEMPTYROW) = TYEMPTYROW
+	  | subst (TYEMPTYROW)          = TYEMPTYROW
     in subst
     end
 
@@ -526,7 +523,24 @@ fun generalize (tau : ty, tyvars : string set) : typeScheme =
 fun instantiate (FORALL (formals, tau), actuals) : ty =
     tysubst (List.foldl (fn (pair, e) => bind e pair)
 			emptyEnv (ListPair.zipEq (formals, actuals))) tau
-	    
+
+(* 
+ * refreshRecvars
+ *
+ * refreshRecvars recursively traverses a type creating fresh
+ * references from child RECVARS to their parent MU types.
+ *)
+fun refreshRecvars tau =
+    let fun f (mu as (MU tau),      r) = MU (f (tau, ref mu))
+	  | f (RECVAR _,            r) =
+	    (case !r of TYEMPTYROW => raise ShouldNotHappen "unpaired RECVAR"
+		      | _ => RECVAR r)
+	  | f (CONAPP (ta, tb),     r) = CONAPP (f (ta, r), f (tb, r))
+	  | f (TYROW ((l, ta), tb), r) = TYROW ((l, f (ta, r)), f (tb, r))
+	  | f (t, _) = t (* all types with no children *)
+    in f (tau, ref TYEMPTYROW)
+    end
+	
 (*
  * freshInstance
  *
@@ -536,46 +550,19 @@ fun instantiate (FORALL (formals, tau), actuals) : ty =
  *)
 
 fun freshInstance (FORALL (bound, tau)) : ty =
-    instantiate (FORALL (bound, tau), List.map freshtyvar bound)
+    let val freshVars = List.map freshtyvar bound
+	val freshTau = instantiate (FORALL (bound, tau), freshVars)
+    in refreshRecvars freshTau
+    end
 		
 (*                         ------ HM INFERENCE ------                         *)
 
-fun unroll (MU (t, tau)) =
-    let val theta = mapsTo (t, MU (t, tau))
-    in tysubst theta tau
-    end
+fun unroll (MU tau) = unroll tau
+  | unroll (RECVAR v) = !v
   | unroll (CONAPP (ta, tb)) = CONAPP (unroll ta, unroll tb)
   | unroll (TYROW ((s, ta), tb)) = TYROW ((s, unroll ta), unroll tb)
   | unroll tau = tau (* all types with no children *)
-
-(* as written, this function can't deal with cases
- * where there are multiple distinct mu types which
- * are children of the root tau. This function is only
- * used for type simplification for printing, however,
- * so it's okay *)
-
-(* NOTE: this function shouldn't be used right now -- it doesnt terminate for some inputs *)
-fun roll tau =
-    let fun optionalOr (SOME v, _)  = SOME v
-	  | optionalOr (_, SOME v)  = SOME v
-	  | optionalOr (NONE, NONE) = NONE
-	fun rollHelper (MU (t, tau)) = (TYVAR t, SOME t)
-	  | rollHelper (CONAPP (ta, tb)) =
-	    let val (ta', muVarA) = rollHelper ta
-		val (tb', muVarB) = rollHelper tb
-	    in (CONAPP (ta', tb'), optionalOr (muVarA, muVarB))
-	    end
-	  | rollHelper (TYROW ((s, ta), tb)) =
-	    let val (ta', muVarA) = rollHelper ta
-		val (tb', muVarB) = rollHelper tb
-	    in (TYROW ((s, ta'), tb'), optionalOr (muVarA, muVarB))
-	    end
-	  | rollHelper tau = (tau, NONE) (* all types with no children *)
-	val (rolledTau, potentialVar) = rollHelper tau
-    in case potentialVar of SOME t => MU (t, rolledTau)
-			  | NONE => tau
-    end
-
+		
 datatype brokenConstraint = UNEQUAL of ty * ty
 			  | MISSING of string
 
@@ -637,9 +624,10 @@ fun solve c =
 			  | NONE => ()
 	    in compose (solve (t ~ t' /\ r ~ s'), theta1)
 	    end
-	  | solveEq (MU (t, tau), MU (t', tau')) = solve (TYVAR t ~ TYVAR t' /\ tau ~ tau')
-	  | solveEq (mu as MU _, t) = solveEq (unroll mu, t)
-	  | solveEq (t, mu as MU _) = solveEq (t, unroll mu)
+	  | solveEq (RECVAR v, RECVAR v') = emptySet
+	  | solveEq (MU t, MU t') = solveEq (t, t')
+	  | solveEq (t as MU _, t') = solveEq (unroll t, t')
+	  | solveEq (t, t' as MU _) = solveEq (t, unroll t')
 	  | solveEq (ta, tb) = raise UnsatisfiableConstraint (UNEQUAL (ta, tb))
 				     
 	fun solveCon (c1, c2) =
@@ -667,8 +655,9 @@ in fun typeString (tau, Delta) =
 	     | ts (v as CONAPP (TYCON "variant", _)) = variantString (v, Delta)
 	     | ts (CONAPP (ta, tb)) =
 	       ts tb ^ " " ^ ts ta
-	     | ts (tau as MU (var, t)) =
-	       "mu." ^ var ^ " [" ^ ts t ^ "]"
+	     | ts (MU t) =
+	       "mu[" ^ ts t ^ "]"
+	     | ts (RECVAR s) = "*mu"
 	     | ts (TYROW ((label, t), ext)) =
 	       "(" ^ label ^ " :: " ^ ts t ^ " | " ^ ts ext ^ ")"
 	     | ts (TYEMPTYROW) = "[]"
@@ -821,7 +810,7 @@ fun typeof (e, Gamma : typeScheme env, Delta : typeScheme env) : ty * con =
 	    let val restTau = freshtyvar ()
 		val fieldTau = freshtyvar ()
 		val resultTau = CONAPP (TYCON "variant",
-					rowtype ((field, fieldTau), restTau)) (* roll this? *)
+					rowtype ((field, fieldTau), restTau))
 		val declTau = declOfVariant field
 		val (valueTau, Con) = ty e
 	    in (declTau, Con /\ fieldTau ~ valueTau /\ resultTau ~ (unroll declTau))
@@ -1025,12 +1014,10 @@ fun fetchInput flags =
     end
 
 fun replaceTycon (name, ty, replacement) =
-    let fun subst (t as TYVAR _) = t
-	  | subst (t as TYCON s) = if s = name then replacement else t
+    let fun subst (t as TYCON s) = if s = name then replacement else t
 	  | subst (CONAPP (ta, tb)) = CONAPP (subst ta, subst tb)
-	  | subst (t as MU _) = t
 	  | subst (TYROW ((f, ta), tb)) = TYROW ((f, subst ta), subst tb)
-	  | subst (t as TYEMPTYROW) = t
+	  | subst t = t (* all types with no children *)
     in subst ty
     end
 
@@ -1081,9 +1068,15 @@ fun processDef (VAL (name, rawExpr), flags, Gamma, Rho, Delta) =
 		then raise TypeError "tyvar mismatch in variant"
 		else ()
 	val tau = if isRectype (name, rawTau) then
-		      let val recVar = freshtyname ()
-			  val recTau = MU (recVar, replaceTycon (name, rawTau, TYVAR recVar))
-		      in recTau
+		      let val recVar = ref TYEMPTYROW
+			  val recTau = MU (replaceTycon (name, rawTau, RECVAR recVar))
+		      (* FIXME: The fact that I have to assign to the RECVAR
+		       * here instead of just leaving it as a sentinel
+		       * probably means there's a bug somewhere. RECVARS are
+		       * reassigned automatically in freshinstance, so this 
+		       * should not be necessary.
+		       *)
+		      in recTau before recVar := recTau
 		      end
 		  else rawTau
 	val sigma = FORALL (freetyvarsInType tau, tau)
@@ -1108,8 +1101,8 @@ fun parse str =
     end
 
 fun evalFile (flags, filename, (Gamma, Rho, Delta)) =
-    let val basisText = readFileIntoString filename
-	val decls = SOME (parse basisText)
+    let val text = readFileIntoString filename
+	val decls = SOME (parse text)
 		    handle Parser.SyntaxError msg => NONE before print msg
 	val (_, Gamma', Rho', Delta')
 	    = (case decls of SOME ds =>
