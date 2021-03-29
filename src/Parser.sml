@@ -494,11 +494,48 @@ and infixExpr (e, p) =
 		  | Tokens.OR        => binOp ("||", Tokens.OR,        e, p)
 		  | _ => (e, p)
     end
+
+fun directive p =
+    let fun assertType p = 
+	    let val p = expect p Tokens.OPENROUND
+		val (e, p) = expr p
+		val p = expect p Tokens.COMMA
+		val (tau, p) = tyExp p
+		val p = expect p Tokens.CLOSEROUND
+	    in (TYPE_EQ (e, tau), p)
+	    end
+			       
+	fun assertTypeError p = 
+	    let val p = expect p Tokens.OPENROUND
+		val (e, p) = expr p
+		val p = expect p Tokens.CLOSEROUND
+	    in (TYPE_ERROR e, p)
+	    end
+
+	fun assertValueTrue p =
+	    let val p = expect p Tokens.OPENROUND
+		val (e, p) = expr p
+		val p = expect p Tokens.CLOSEROUND
+	    in (VALUE_TRUE e, p)
+	    end
+			       
+	val name = extractString p
+	val p = expect p Tokens.DIRECTIVE
+	val (assertion, p) =
+	    case name of "#check-type" => assertType p
+		       | "#check-type-error" => assertTypeError p
+		       | "#assert" => assertValueTrue p
+		       | _ => raise SyntaxError ("unknown directive `" ^ name ^
+						 "' at " ^ locationString (peek p) ^ "\n")
+    in (SOME (STATIC_ASSERT assertion), p)
+    end
 	
 fun decl p =
     let fun declFun p =
 	    let val name = extractString p
+
 		val p = expect p Tokens.NAME
+
 		val (args, p) = argList p
 		val p = expect p Tokens.EQ
 		val (e, p) = expr p
@@ -529,6 +566,9 @@ fun decl p =
 	val (d, p) = if gotVal then declVal p else (d, p)
 	val (gotUni, p) = consumeIf (notAnyOf [gotVal, gotFun]) p Tokens.UNION
 	val (d, p) = if gotUni then declUni p else (d, p)
+	val gotDir = notAnyOf [gotVal, gotFun, gotUni]
+		     andalso Tokens.kindOf (peek p) = Tokens.DIRECTIVE
+	val (d, p) = if gotDir then directive p else (d, p)
 	val (d, p) = case d of SOME d => (d, p)
 			     | NONE => raise SyntaxError ("Declarations must start with " ^
 							  "fun, val, or union")

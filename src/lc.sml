@@ -873,7 +873,7 @@ fun typedef (name, e, Gamma : typeScheme env, Delta : typeScheme env) =
 	  | ty e = 
 	    let val (tau, Con) = typeof (e, Gamma, Delta)
 		val theta = solve Con
-			    handle UnsatisfiableConstraint error=> registerTypeError (error, Delta)
+			    handle UnsatisfiableConstraint error => registerTypeError (error, Delta)
 		val sigma = generalize (tysubst theta tau, freetyvarsInGamma Gamma)
 	    in bindtyscheme (name, sigma, Gamma)
 	    end
@@ -1084,6 +1084,35 @@ fun processDef (VAL (name, rawExpr), flags, Gamma, Rho, Delta) =
 	val (names, _) = ListPair.unzip options
 	val (Gamma', Rho') = introduceConstructors (names, Gamma, Rho, Delta')
     in (name ^ " : " ^ typeSchemeString (sigma, Delta), Gamma', Rho', Delta')
+    end
+  | processDef (STATIC_ASSERT (TYPE_ERROR rawExpr), _, Gamma, Rho, Delta) =
+    let val expr = desugar rawExpr
+	val (tau, Con) = typeof (expr, Gamma, Delta)
+	val succ = (solve Con; false) handle _ => true
+	val _ = if succ
+		then ()
+		else raise TypeError "Assertion failed. Expected type error"
+    in ("", Gamma, Rho, Delta)
+    end
+  | processDef (STATIC_ASSERT (TYPE_EQ (rawExpr, tau)), _, Gamma, Rho, Delta) =
+    let val _ = raise Unimplemented "TYPE_EQ static assertion"
+	val expr = desugar rawExpr
+	val (tau, Con) = typeof (expr, Gamma, Delta)
+	val possibleTheta = SOME (solve Con)
+			    handle UnsatisfiableConstraint _ => NONE
+	val sigma = case possibleTheta
+		     of SOME theta => SOME (generalize (tysubst theta tau, freetyvarsInGamma Gamma))
+		      | NONE => NONE
+    in ("", Gamma, Rho, Delta)
+    end
+  | processDef (STATIC_ASSERT (VALUE_TRUE rawExpr), _, Gamma, Rho, Delta) =
+    let val expr = desugar rawExpr
+	val _ = typedef ("it", expr, Gamma, Delta)
+	val value = eval (expr, Rho)
+	val _ = case value of BOOL true => ()
+			    | _ => raise TypeError ("Assertion failed. Expected true" ^
+						    " but got " ^ valueString value)
+    in ("", Gamma, Rho, Delta)
     end
 	
 fun readFileIntoString filename =

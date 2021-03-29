@@ -19,6 +19,7 @@ datatype ty = TYVAR of string
 			    
 datatype decl = VAL of string * exp
 	      | UNION of string * string list * (string * ty) list
+	      | STATIC_ASSERT of assertion
      and exp = CONST of value
 	     | VAR of string             
 	     | ABS of lam                      (* abstraction            *)
@@ -44,6 +45,9 @@ datatype decl = VAL of string * exp
 	       | LIST of exp list
 	       | BLOCK of decl list
 	       | STRING of string
+     and assertion = TYPE_ERROR of exp
+		   | TYPE_EQ of exp * ty
+		   | VALUE_TRUE of exp
 withtype lam = string * exp
 
 end
