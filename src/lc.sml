@@ -187,7 +187,8 @@ fun primAnd args = case args of [a, b] => BOOL ((projectBool a) andalso (project
 fun primOr args = case args of [a, b] => BOOL ((projectBool a) orelse (projectBool b))
 			     | _ => raise badArity
 
-fun puts args = case args of [a] => let val list = projectList a
+fun puts args = case args of [a] => let val vect = projectVector a
+					val list = Vector.foldr (op ::) [] vect
 					val list = List.map projectChar list
 					val str = String.implode list
 					val _ = print (str ^ "\n")
@@ -198,9 +199,9 @@ fun puts args = case args of [a] => let val list = projectList a
 fun gets args = case args of [a] => let val line = case TextIO.inputLine TextIO.stdIn
 						    of SOME s => s
 						     | NONE => ""
-					val list = String.explode line
-					val list = List.map CHAR list
-				    in embedList list
+					val list = List.map CHAR (String.explode line)
+					val vect = Vector.fromList list
+				    in VECTOR vect
 				    end
 			   | _ => raise badArity
 					
@@ -233,9 +234,9 @@ val primitives =
      ("&&", arityTwoPrim (booltype, booltype, booltype, primAnd)),
      ("||", arityTwoPrim (booltype, booltype, booltype, primOr)),
      ("puts", ABS ("str", RAW (unittype,
-			       [(listtype chartype, VAR "str")],
+			       [(vectortype chartype, VAR "str")],
 			       puts))),
-     ("gets", ABS ("a", RAW (listtype chartype,
+     ("gets", ABS ("a", RAW (vectortype chartype,
 			     [(unittype, VAR "a")],
 			     gets))),
      ("itos", ABS ("a", RAW (listtype chartype,
