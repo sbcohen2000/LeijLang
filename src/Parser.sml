@@ -252,11 +252,10 @@ fun expr p =
 	       else ([], p)
 	    end
 
-	val (e, es, p) = case app p of ([], _) => raise SyntaxError ("Empty expr " ^
-								     Lexer.tokenString (peek p) ^
-								     " at " ^ 
-								     locationString (peek p) ^
-								     "\n")
+	val (e, es, p) = case app p of ([], _) =>
+				       raise SyntaxError ("Expected expression but got " ^
+							  Lexer.tokenString (peek p) ^ " at " ^
+							  locationString (peek p) ^ "\n")
 				     | (e::es, p) => (e, es, p)
 	val (e, p) = (List.foldl (fn (f, rest) => APP (rest, f)) e es, p)
     in (e, p)
@@ -570,8 +569,9 @@ fun decl p =
 		     andalso Tokens.kindOf (peek p) = Tokens.DIRECTIVE
 	val (d, p) = if gotDir then directive p else (d, p)
 	val (d, p) = case d of SOME d => (d, p)
-			     | NONE => raise SyntaxError ("Declarations must start with " ^
-							  "fun, val, or union")
+			     | NONE => raise SyntaxError ("Expected declaration but got " ^
+							  Lexer.tokenString (peek p) ^ " at " ^
+ 							  locationString (peek p) ^ "\n")
     in (d, p)
     end
 
