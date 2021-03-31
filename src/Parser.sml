@@ -192,16 +192,19 @@ val _ = op unionBody : parser -> ((string * AST.ty) list * parser)
 
 exception UnmatchedCurly
 fun lookaheadToBlockType p =
-    let val p = expect p Tokens.OPENCURLY
-	val curlyDepth = ref 1
+    let val curlyDepth = ref 1
 	fun search (lastToken, lexer) = 
 	    let val p' = Lexer.nextToken lexer
 	    in case Tokens.kindOf (peek p')
 		of Tokens.CLOSECURLY =>
-		   let val _ = curlyDepth := !(curlyDepth) - 1
+		   let val _ = curlyDepth := !curlyDepth - 1
 		   in if !curlyDepth < 0 then raise UnmatchedCurly
 		      else if !curlyDepth = 0 then Tokens.kindOf lastToken = Tokens.SEMICOLON
 		      else search p'
+		   end
+		 | Tokens.OPENCURLY =>
+		   let val _ = curlyDepth := !curlyDepth + 1
+		   in search p'
 		   end
 		 | Tokens.EOF => raise UnmatchedCurly
 		 | _ => search p'
@@ -311,12 +314,12 @@ and term p =
 		     then groupExpr p else (NONE, p)
 	val gotCurly = Tokens.kindOf (peek p) = Tokens.OPENCURLY
 	val (e, p) = if gotCurly andalso notAnyOf [gotParen] (* block *)
-		     then if lookaheadToBlockType p then
-			      let val p = expect p Tokens.OPENCURLY
-				  val (blockContents, p) = blockExpr p
-			      in (SOME (SUGAR (BLOCK blockContents)), p)
-			      end
-			  else (e, p) else (e, p)
+			andalso lookaheadToBlockType p then
+			 let val p = expect p Tokens.OPENCURLY
+			     val (blockContents, p) = blockExpr p
+			 in (SOME (SUGAR (BLOCK blockContents)), p)
+			 end
+		     else (e, p) 
 	val gotConst = isConstStarter (peek p)
 	val (e, p) = if gotConst andalso notAnyOf [gotParen]
 		     then let val (e, p) = constExpr p in (SOME e, p) end else (e, p)
