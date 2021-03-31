@@ -1,5 +1,5 @@
-/* @description: can desugar and evaluate basic block expressions
- * @output: 16
+/* 
+ * @description: can desugar and evaluate basic block expressions
  */
 
 val num = {
@@ -8,4 +8,4 @@ val num = {
 	r + 1;
     };
 
-val unit = puts (itos num);
+#assert (num = 16);
