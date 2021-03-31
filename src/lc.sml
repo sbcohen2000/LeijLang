@@ -858,23 +858,13 @@ fun typeof (e, Gamma : typeScheme env, Delta : typeScheme env) : ty * con =
     end
 	
 fun typedef (name, e, Gamma : typeScheme env, Delta : typeScheme env) =
-    let fun ty (e as ABS (formal, body)) =
-	    let val alpha = freshtyvar ()
-		val Gamma' = bindtyscheme (name, FORALL ([], alpha), Gamma)
-		val (tau, Con) = typeof (e, Gamma', Delta)
-		val theta = solve (Con /\ alpha ~ tau)
-				  handle UnsatisfiableConstraint error => registerTypeError (error, Delta)
-		val sigma = generalize (tysubst theta alpha, freetyvarsInGamma Gamma)
-	    in bindtyscheme (name, sigma, Gamma)
-	    end
-	  | ty e = 
-	    let val (tau, Con) = typeof (e, Gamma, Delta)
-		val theta = solve Con
-			    handle UnsatisfiableConstraint error => registerTypeError (error, Delta)
-		val sigma = generalize (tysubst theta tau, freetyvarsInGamma Gamma)
-	    in bindtyscheme (name, sigma, Gamma)
-	    end
-    in ty e
+    let val alpha = freshtyvar ()
+	val Gamma' = bindtyscheme (name, FORALL ([], alpha), Gamma)
+	val (tau, Con) = typeof (e, Gamma', Delta)
+	val theta = solve (Con /\ alpha ~ tau)
+		    handle UnsatisfiableConstraint error => registerTypeError (error, Delta)
+	val sigma = generalize (tysubst theta alpha, freetyvarsInGamma Gamma)
+    in bindtyscheme (name, sigma, Gamma)
     end
 	
 (*                          ------ EVALUATION ------                          *)
@@ -926,8 +916,8 @@ fun eval (e, Rho : value ref env) =
 	  | ev (DOT (e, field)) =
 	    let val records = case ev e
 			       of RECORD records => records
-				| _ => raise ShouldNotHappen
-					     "dot applied to non-record"
+				| v => raise ShouldNotHappen
+					     ("dot applied to " ^ valueString v)
 		val value = case List.find (fn (nm, v) => nm = field) records
 			     of SOME (_, v) => v
 			      | NONE => raise ShouldNotHappen
