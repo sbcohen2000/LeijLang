@@ -301,6 +301,22 @@ and term p =
 	    in (SOME (EXN raiseText), p)
 	    end
 
+	fun dotExpr (e, p) =
+	    let fun dotChain p =
+		    let val p = expect p Tokens.DOT
+			val fieldText = extractString p
+			val p = expect p Tokens.NAME
+		    in if Tokens.kindOf (peek p) = Tokens.DOT
+		       then let val (rest, p) = dotChain p
+			    in (fieldText::rest, p)
+			    end
+		       else ([fieldText], p)
+		    end
+		val (chain, p) = dotChain p
+		fun swap (a, b) = (b, a)
+	    in (List.foldl (DOT o swap) e chain, p)
+	    end
+		
 	fun vectorIndex (e, p) =
 	    let val p' = expect p Tokens.OPENSQUARE
 		val (idxE, p') = expr p'
@@ -351,6 +367,8 @@ and term p =
 			     | NONE => raise SyntaxError ("Unexpected " ^
 							  Lexer.tokenString (peek p) ^
 							  " in expression")
+	val gotDot = Tokens.kindOf (peek p) = Tokens.DOT
+	val (e, p) = if gotDot then dotExpr (e, p) else (e, p)
 	val gotBracket = Tokens.kindOf (peek p) = Tokens.OPENSQUARE
 	val (e, p) = if gotBracket then vectorIndex (e, p) else (e, p)
 	val gotInfix = isInfixStarter (peek p)
@@ -467,11 +485,6 @@ and recordExpr p =
     end
 
 and infixExpr (e, p) =
-    let fun dotExpr (e, p) =
-	    let val p = expect p Tokens.DOT
-		val fieldText = extractString p
-		val p = expect p Tokens.NAME
-	    in (DOT (e, fieldText), p)
 	    end
 
 	fun binOp (name, kind, arg1, p) =
@@ -481,8 +494,7 @@ and infixExpr (e, p) =
 	    end
 		
 	val kind = Tokens.kindOf (peek p)
-    in case kind of Tokens.DOT       => dotExpr (e, p)
-		  | Tokens.EQ        => binOp ("=",  Tokens.EQ,        e, p)
+    in case kind of Tokens.EQ        => binOp ("=",  Tokens.EQ,        e, p)
 		  | Tokens.PLUS      => binOp ("+",  Tokens.PLUS,      e, p)
 		  | Tokens.MINUS     => binOp ("-",  Tokens.MINUS,     e, p)
 		  | Tokens.STAR      => binOp ("*",  Tokens.STAR,      e, p)

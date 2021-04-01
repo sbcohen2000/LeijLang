@@ -45,5 +45,5 @@ val x = {
 	{ min = min, max = max };
     };
 
-#assert ((x.min) = 1);
-#assert ((x.max) = 10);
+#assert (x.min = 1);
+#assert (x.max = 10);
