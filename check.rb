@@ -8,18 +8,15 @@ def parseTest(filename)
   text = File.read(filename)
   description = if match = text.match(/@description: ?(.+)/i)
                 then (match.captures)[0] else "no description" end
-  output = if match = text.match(/@output: ?(.+)/i)
-           then (match.captures)[0] else "" end
-  return [output, description]
+  return description
 end
 
-def evalTest(test, expectedOutput, description)
+def evalTest(test, description)
   response = `./bin/lc -q #{test}`
-  if response.strip == expectedOutput.strip then
+  if response.empty? then
     puts "#{description} \u001b[32mPASSED\u001b[0m"
   else
-    msg = "expected #{expectedOutput.strip} but got #{response.strip}"
-    puts ("#{description} \u001b[31mFAILED\u001b[0m\n" + msg)
+    puts ("#{description} \u001b[31mFAILED\u001b[0m\n" + response)
   end
 end
 
@@ -34,6 +31,6 @@ tests = Dir.glob("#{dirPath}/**/*").select { |e|
 };
 
 tests.each do |test|
-  output, description = parseTest test
-  evalTest(test, output, description)
+  description = parseTest test
+  evalTest(test, description)
 end

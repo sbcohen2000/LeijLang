@@ -21,6 +21,7 @@ datatype token = TOKEN of kind * location * payload
 	      | TRUE
 	      | FALSE
 	      | UNIT
+	      | DIRECTIVE
 	      | DOT         (* punctuation *)
 	      | SEMICOLON
 	      | COMMA
@@ -208,6 +209,12 @@ fun stringLiteral lexer =
 	val newLexer = consume newLexer (* consume closing " *)
     in (newLexer, SOME (TOKEN (STRING, locationOf lexer, STR_VAL str)))
     end
+
+fun directive lexer =
+    let val newLexer = consumeWhile isAllowedQuoteChar lexer
+	val (_, dirName, _) = newLexer
+    in (newLexer, SOME (TOKEN (DIRECTIVE, locationOf lexer, STR_VAL dirName)))
+    end
 	
 fun quote lexer =
     let val newLexer = consumeWhile isAllowedQuoteChar lexer
@@ -302,6 +309,7 @@ fun nextToken lexer =
 		in (case char
 		     of #"'" => charLiteral lexer
 		      | #"\"" => stringLiteral lexer
+		      | #"#" => directive lexer
 		      | #"." => (lexer, mkToken         DOT)
 		      | #";" => (lexer, mkToken   SEMICOLON)
 		      | #"," => (lexer, mkToken       COMMA)
@@ -357,6 +365,7 @@ fun kindString NAME        = "name"
   | kindString TRUE        = "`true'"
   | kindString FALSE       = "`false'"
   | kindString UNIT        = "`()'"
+  | kindString DIRECTIVE   = "directive"
   | kindString DOT         = "`.'"
   | kindString SEMICOLON   = "`;'"
   | kindString COMMA       = "`,'"

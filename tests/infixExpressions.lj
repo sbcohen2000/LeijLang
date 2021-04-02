@@ -1,0 +1,19 @@
+/*
+ * @description: Parse infix expressions
+ */
+
+val n = 3 * 5 + 1;
+#assert (n = 16);
+
+val n = 1 + 15 / 3;
+#assert (n = 6);
+
+val n = 20 % 2 + 5;
+#assert (n = 5);
+
+val n = 1 + 2 * 3 + 4;
+#assert (n = 11);
+
+val n = (1 + 2) * 3 + 4;
+#assert (n = 13);
+

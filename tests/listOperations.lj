@@ -1,0 +1,40 @@
+/*
+ * @description: Do basic operations on lists
+ */
+
+/* construct list literals */
+val intList = [1, 2, 3, 4];
+val boolList = [true, false, true];
+
+/* create polymorphic functions on lists */
+fun all pred list = match list with CONS pair => pred pair.car && all pred pair.cdr
+				    | NIL n => true;
+
+#check-type-error (all (fn x => x + 1) intList); /* pred must return bool */
+#assert (all (fn x => x > 0) intList);
+#assert (not (all (fn x => x < 3) intList));
+#assert (not (all (fn x => x) boolList));
+
+fun first list = match list with CONS pair => pair.car
+				 | NIL n => raise emptyList;
+
+#assert (first intList = 1);
+#assert (first boolList);
+
+fun last list = match list with CONS pair =>
+				(match pair.cdr with CONS v => last pair.cdr
+						     | NIL v => pair.car)
+				| NIL v => raise emptyList;
+
+#assert (last intList = 4);
+#assert (last boolList);
+
+/* nested lists */
+val nested = [[1, 2], [3, 4]];
+
+fun length list = match list with CONS pair => 1 + length pair.cdr
+				  | NIL v => 0;
+
+#assert (length (first nested) = 2);
+#assert (last (last nested) = 4);
+#assert (length nested = length (first nested));
