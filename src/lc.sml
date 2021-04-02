@@ -479,7 +479,7 @@ fun compose (theta2, theta1) =
  * have been renamed to be more readable for error messages.
  *
  *)
-	
+
 fun canonicalize (FORALL (bound, ty)) =
     let fun canonicalTyvarName n =
             if n < 26 then "'" ^ str (chr (ord #"a" + n))

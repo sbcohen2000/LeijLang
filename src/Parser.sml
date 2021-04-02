@@ -26,7 +26,7 @@ fun newParser l = Lexer.nextToken l
 fun peek (theToken, lexer) = theToken
 
 val _ = op peek : parser -> Tokens.token
-				  
+
 fun consume (theToken, lexer) targetKind =
     let val (nextToken, newLexer) = Lexer.nextToken lexer
     in if (Tokens.kindOf theToken) = targetKind
@@ -241,274 +241,334 @@ in fun isConstStarter token =
        let open Tokens
 	   val oneOf = oneOf (Tokens.kindOf token)
        in oneOf [DOT, EQ, PLUS, MINUS, STAR, SLASH, PERCENT,
-		 LESS, MORE, LESSEQUAL, MOREEQUAL, AND, OR]
+                 LESS, MORE, LESSEQUAL, MOREEQUAL, AND, OR]
+       end
+
+   fun precedence token =
+       case Tokens.kindOf token
+	of Tokens.STAR      => 6
+	 | Tokens.SLASH     => 6
+	 | Tokens.PERCENT   => 6
+	 | Tokens.PLUS      => 5
+	 | Tokens.MINUS     => 5
+	 | Tokens.LESS      => 4
+	 | Tokens.MORE      => 4
+	 | Tokens.LESSEQUAL => 4
+	 | Tokens.MOREEQUAL => 4
+	 | Tokens.EQ        => 3
+	 | Tokens.AND       => 2
+	 | Tokens.OR        => 1
+	 | _                => 0
+
+   fun nameOfInfix token =
+       case Tokens.kindOf token
+	of Tokens.STAR      => "*"
+	 | Tokens.SLASH     => "/"
+	 | Tokens.PERCENT   => "%"
+	 | Tokens.PLUS      => "+"
+	 | Tokens.MINUS     => "-"
+	 | Tokens.LESS      => "<"
+	 | Tokens.MORE      => ">"
+	 | Tokens.LESSEQUAL => "<="
+	 | Tokens.MOREEQUAL => ">="
+	 | Tokens.EQ        => "="
+	 | Tokens.AND       => "&&"
+	 | Tokens.OR        => "||"
+	 | tkn => raise SyntaxError (Lexer.kindString tkn ^ " is not an infix operator\n")
+
+   datatype assoc = LEFT | RIGHT
+   fun associativity token = LEFT
+
+   datatype infixElem = INF_EXPR of exp
+		      | OPERATOR of Tokens.token
+
+   (* Dijkstra's Shunting-Yard Algorithm *)
+   fun shunt infixChain =
+       (* f (input list, op stack) *)
+       let fun postfixIfy ((INF_EXPR e)::rest, opStack) =
+	       (INF_EXPR e)::(postfixIfy (rest, opStack))
+	     | postfixIfy ((OPERATOR opr)::rest, opStack) =
+	       let fun pushOp (popped, (OPERATOR top)::rest') =
+		       if precedence top > precedence opr
+			  orelse (precedence top = precedence opr andalso associativity opr = LEFT)
+		       then pushOp ((OPERATOR top)::popped, rest')
+		       else (popped, (OPERATOR top)::rest')
+		     | pushOp (popped, []) = (popped, [])
+		     | pushOp _ = raise SyntaxError "Expression in operator stack!"
+		   val (popped, opStack) = pushOp ([], opStack)
+	       in (List.rev popped) @ (postfixIfy (rest, (OPERATOR opr)::opStack))
+	       end
+	     | postfixIfy ([], opStack) = opStack
+
+	   fun collapse (prefix, (INF_EXPR arg1)::(INF_EXPR arg2)::(OPERATOR opr)::suffix) =
+	       SOME (prefix @ (INF_EXPR (APP (APP (VAR (nameOfInfix opr), arg1), arg2)))::suffix)
+	     | collapse _ = NONE
+
+	   fun astIfy ([], [INF_EXPR exp]) = exp
+	     | astIfy (skipped, elem::unprocessed) =
+	       (case collapse (skipped, elem::unprocessed) of SOME collapsed => astIfy ([], collapsed)
+							    | NONE => astIfy (elem::skipped, unprocessed))
+	     | astIfy _ = raise SyntaxError "Could not astIfy!\n"
+				
+	   val postfixChain = postfixIfy (infixChain, [])
+	   val expr = astIfy ([], postfixChain)
+       in expr
+       end
+					 
+   fun expr p =
+       let fun infixExpr p =
+	       let val (lhs, p) = term p
+	       in if isInfixStarter (peek p)
+		  then let val operator = peek p
+			   val (_, p) = consume p (Tokens.kindOf operator)
+			   val (rest, p) = infixExpr p
+		       in ((INF_EXPR lhs)::(OPERATOR operator)::rest, p)
+		       end
+		  else ([INF_EXPR lhs], p)
+	       end
+	   val (infixChain, p) = infixExpr p
+	   val expr = shunt infixChain
+       in (expr, p)
+       end
+		    
+   and term p = 
+       let fun app p =
+	       let val gotStarter = isExprStarter (peek p)
+	       in if gotStarter then let val (nextE, p) = fact p
+					 val (rest, p) = app p
+				     in (nextE::rest, p)
+				     end
+		  else ([], p)
+	       end
+
+	   val (e, es, p) = case app p of ([], _) =>
+					  raise SyntaxError ("Expected expression but got " ^
+							     Lexer.tokenString (peek p) ^ " at " ^
+							     locationString (peek p) ^ "\n")
+					| (e::es, p) => (e, es, p)
+	   val (e, p) = (List.foldl (fn (f, rest) => APP (rest, f)) e es, p)
+       in (e, p)
+       end
+	   
+   and fact p =
+       let fun groupExpr p =
+	       let val (e, p) = expr p
+		   val p = expect p Tokens.CLOSEROUND
+	       in (SOME e, p)
+	       end
+
+	   fun fnExpr p =
+	       let val argText = extractString p
+		   val p = expect p Tokens.NAME
+		   val p = expect p Tokens.ARROW
+		   val (e, p) = expr p
+	       in (SOME (ABS (argText, e)), p)
+	       end
+
+	   fun ifExpr p =
+	       let val (condE, p) = expr p
+		   val p = expect p Tokens.THEN
+		   val (thenE, p) = expr p
+		   val p = expect p Tokens.ELSE
+		   val (elseE, p) = expr p
+	       in (SOME (IF (condE, thenE, elseE)), p)
+	       end
+
+	   fun matchExpr p =
+	       let val (matchE, p) = expr p
+		   val p = expect p Tokens.WITH
+		   val (ms, p) = matches p
+	       in (SOME (SUGAR (MATCH (matchE, ms))), p)
+	       end
+
+	   fun raiseExpr p =
+	       let val raiseText = extractString p
+		   val p = expect p Tokens.NAME
+	       in (SOME (EXN raiseText), p)
+	       end
+
+	   fun dotExpr (e, p) =
+	       let fun dotChain p =
+		       let val p = expect p Tokens.DOT
+			   val fieldText = extractString p
+			   val p = expect p Tokens.NAME
+		       in if Tokens.kindOf (peek p) = Tokens.DOT
+			  then let val (rest, p) = dotChain p
+			       in (fieldText::rest, p)
+			       end
+			  else ([fieldText], p)
+		       end
+		   val (chain, p) = dotChain p
+		   fun swap (a, b) = (b, a)
+	       in (List.foldl (DOT o swap) e chain, p)
+	       end
+		   
+	   fun vectorIndex (e, p) =
+	       let val p' = expect p Tokens.OPENSQUARE
+		   val (idxE, p') = expr p'
+		   val (gotClose, p') = consume p' Tokens.CLOSESQUARE
+	       in if gotClose then (APP (APP (VAR "at", e), idxE), p')
+		  else (e, p) (* we got a list literal, not an index *)
+	       end
+
+	   val (gotParen, p) = consume p Tokens.OPENROUND
+	   val (e, p) = if gotParen 
+			then groupExpr p else (NONE, p)
+	   val gotCurly = Tokens.kindOf (peek p) = Tokens.OPENCURLY
+	   val (e, p) = if gotCurly andalso notAnyOf [gotParen] (* block *)
+			   andalso lookaheadToBlockType p then
+			    let val p = expect p Tokens.OPENCURLY
+				val (blockContents, p) = blockExpr p
+			    in (SOME (SUGAR (BLOCK blockContents)), p)
+			    end
+			else (e, p) 
+	   val gotConst = isConstStarter (peek p)
+	   val (e, p) = if gotConst andalso notAnyOf [gotParen]
+			then let val (e, p) = constExpr p in (SOME e, p) end else (e, p)
+	   val possibleNameText = extractString p
+	   val (gotName, p) = consumeIf (notAnyOf [gotParen, gotCurly,
+						   gotConst]) p Tokens.NAME
+	   val (e, p) = if gotName 
+			then (SOME (VAR possibleNameText), p) else (e, p)
+	   val (gotFn, p) = consumeIf (notAnyOf [gotParen, gotCurly,
+						 gotConst, gotName]) p Tokens.FN
+	   val (e, p) = if gotFn
+			then fnExpr p else (e, p)
+	   val (gotIf, p) = consumeIf (notAnyOf [gotParen, gotCurly, gotConst,
+						 gotName, gotFn])
+				      p Tokens.IF
+	   val (e, p) = if gotIf
+			then ifExpr p else (e, p)
+	   val (gotMatch, p) = consumeIf (notAnyOf [gotParen, gotCurly, gotConst,
+						    gotName, gotFn, gotIf])
+					 p Tokens.MATCH
+	   val (e, p) = if gotMatch
+			then matchExpr p else (e, p)
+	   val (gotRaise, p) = consumeIf (notAnyOf [gotParen, gotCurly, gotConst,
+						    gotName, gotFn, gotIf, gotMatch])
+					 p Tokens.RAISE
+	   val (e, p) = if gotRaise
+			then raiseExpr p else (e, p)
+	   val (e, p) = case e of SOME e => (e, p)
+				| NONE => raise SyntaxError ("Unexpected " ^
+							     Lexer.tokenString (peek p) ^
+							     " in expression")
+	   val gotDot = Tokens.kindOf (peek p) = Tokens.DOT
+	   val (e, p) = if gotDot then dotExpr (e, p) else (e, p)
+	   val gotBracket = Tokens.kindOf (peek p) = Tokens.OPENSQUARE
+	   val (e, p) = if gotBracket then vectorIndex (e, p) else (e, p)
+       in (e, p)
+       end
+
+   and blockExpr p =
+       let fun valBinding p =
+	       let val name = extractString p
+		   val p = expect p Tokens.NAME
+		   val p = expect p Tokens.EQ
+		   val (e, p) = expr p
+		   val p = expect p Tokens.SEMICOLON
+	       in (VAL (name, e), p)
+	       end
+
+	   fun rawExpr p =
+	       let val (e, p) = expr p
+		   val p = expect p Tokens.SEMICOLON
+	       in (VAL ("_", e), p)
+	       end
+
+	   val (gotVal, p) = consume p Tokens.VAL
+	   val (binding, p) = if gotVal then valBinding p else rawExpr p
+	   val (gotClose, p) = consume p Tokens.CLOSECURLY
+       in if gotClose then ([binding], p)
+	  else let val (rest, p) = blockExpr p
+	       in (binding::rest, p)
+	       end
+       end
+
+   and matches p =
+       let fun patternPair p =
+	       let val (pat, p) = pattern p
+		   val p = expect p Tokens.ARROW
+		   val (e, p) = expr p
+		   val (var, alpha) = pat
+	       in ((var, alpha, e), p)
+	       end
+		   
+	   val (match, p) = patternPair p
+	   val (gotPipe, p) = consume p Tokens.PIPE
+       in if gotPipe then let val (rest, p) = matches p
+			  in (match::rest, p)
+			  end
+	  else ([match], p)
+       end
+
+   and constExpr p =
+       let val possibleNum = extractNumber p
+	   val (gotNum, p) = consume p Tokens.NUMBER
+	   val (e, p) = if gotNum
+			then (SOME (CONST (NUM possibleNum)), p)
+			else (NONE, p)
+	   val possibleChar = extractChar p
+	   val (gotChar, p) = consumeIf (notAnyOf [gotNum]) p Tokens.CHAR
+	   val (e, p) = if gotChar then (SOME (CONST (CHAR possibleChar)), p) else (e, p)
+	   val possibleString = extractString p
+	   val (gotString, p) = consumeIf (notAnyOf [gotNum, gotChar]) p Tokens.STRING
+	   val (e, p) = if gotString then (SOME (SUGAR (STRING possibleString)), p) else (e, p)
+	   val (gotTrue, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString]) p Tokens.TRUE
+	   val (e, p) = if gotTrue then (SOME (CONST (BOOL true)), p) else (e, p)
+	   val (gotFalse, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString, gotTrue]) p Tokens.FALSE
+	   val (e, p) = if gotFalse then (SOME (CONST (BOOL false)), p) else (e, p)
+	   val (gotUnit, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString, gotTrue, gotFalse]) p Tokens.UNIT
+	   val (e, p) = if gotUnit then (SOME (CONST UNIT), p) else (e, p)
+	   val (gotSquare, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString, gotTrue, gotFalse]) p Tokens.OPENSQUARE
+	   val (e, p) = if gotSquare 
+			then let val isEmpty = Tokens.kindOf (peek p) = Tokens.CLOSESQUARE
+				 val (es, p) = if isEmpty then ([], p) else listExpr p
+				 val p = expect p Tokens.CLOSESQUARE
+			     in (SOME (SUGAR (LIST es)), p)
+			     end
+			else (e, p)
+	   val (gotCurly, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString, gotTrue, gotFalse, gotSquare]) p Tokens.OPENCURLY
+	   val (e, p) = if gotCurly
+			then let val (records, p) = recordExpr p
+				 val p = expect p Tokens.CLOSECURLY
+			     in (SOME (RECORD_LITERAL records), p)
+			     end
+			else (e, p)
+	   val (e, p) = case e of SOME e => (e, p)
+				| NONE => raise SyntaxError ("Unexpected " ^
+							     Lexer.tokenString (peek p) ^
+							     " in const")
+       in (e, p)
+       end
+
+   and listExpr p =
+       let val (e, p) = expr p
+	   val (gotComma, p) = consume p Tokens.COMMA
+       in if gotComma then let val (rest, p) = listExpr p
+			   in (e::rest, p)
+			   end
+	  else ([e], p)
+       end
+
+   and recordExpr p =
+       let fun recordPair p =
+	       let val field = extractString p
+		   val p = expect p Tokens.NAME
+		   val p = expect p Tokens.EQ
+		   val (e, p) = expr p
+	       in ((field, e), p)
+	       end
+		   
+	   val (elem, p) = recordPair p
+	   val (gotComma, p) = consume p Tokens.COMMA
+       in if gotComma then let val (rest, p) = recordExpr p
+			   in (elem::rest, p)
+			   end
+	  else ([elem], p)
        end
 end
-
-fun expr p =
-    let fun app p =
-	    let val gotStarter = isExprStarter (peek p)
-	    in if gotStarter then let val (nextE, p) = term p
-				      val (rest, p) = app p
-				  in (nextE::rest, p)
-				  end
-	       else ([], p)
-	    end
-
-	val (e, es, p) = case app p of ([], _) =>
-				       raise SyntaxError ("Expected expression but got " ^
-							  Lexer.tokenString (peek p) ^ " at " ^
-							  locationString (peek p) ^ "\n")
-				     | (e::es, p) => (e, es, p)
-	val (e, p) = (List.foldl (fn (f, rest) => APP (rest, f)) e es, p)
-    in (e, p)
-    end
-	
-and term p =
-    let fun groupExpr p =
-	    let val (e, p) = expr p
-		val p = expect p Tokens.CLOSEROUND
-	    in (SOME e, p)
-	    end
-
-	fun fnExpr p =
-	    let val argText = extractString p
-		val p = expect p Tokens.NAME
-		val p = expect p Tokens.ARROW
-		val (e, p) = expr p
-	    in (SOME (ABS (argText, e)), p)
-	    end
-
-	fun ifExpr p =
-	    let val (condE, p) = expr p
-		val p = expect p Tokens.THEN
-		val (thenE, p) = expr p
-		val p = expect p Tokens.ELSE
-		val (elseE, p) = expr p
-	    in (SOME (IF (condE, thenE, elseE)), p)
-	    end
-
-	fun matchExpr p =
-	    let val (matchE, p) = expr p
-		val p = expect p Tokens.WITH
-		val (ms, p) = matches p
-	    in (SOME (SUGAR (MATCH (matchE, ms))), p)
-	    end
-
-	fun raiseExpr p =
-	    let val raiseText = extractString p
-		val p = expect p Tokens.NAME
-	    in (SOME (EXN raiseText), p)
-	    end
-
-	fun dotExpr (e, p) =
-	    let fun dotChain p =
-		    let val p = expect p Tokens.DOT
-			val fieldText = extractString p
-			val p = expect p Tokens.NAME
-		    in if Tokens.kindOf (peek p) = Tokens.DOT
-		       then let val (rest, p) = dotChain p
-			    in (fieldText::rest, p)
-			    end
-		       else ([fieldText], p)
-		    end
-		val (chain, p) = dotChain p
-		fun swap (a, b) = (b, a)
-	    in (List.foldl (DOT o swap) e chain, p)
-	    end
-		
-	fun vectorIndex (e, p) =
-	    let val p' = expect p Tokens.OPENSQUARE
-		val (idxE, p') = expr p'
-		val (gotClose, p') = consume p' Tokens.CLOSESQUARE
-	    in if gotClose then (APP (APP (VAR "at", e), idxE), p')
-	       else (e, p) (* we got a list literal, not an index *)
-	    end
-
-	val (gotParen, p) = consume p Tokens.OPENROUND
-	val (e, p) = if gotParen 
-		     then groupExpr p else (NONE, p)
-	val gotCurly = Tokens.kindOf (peek p) = Tokens.OPENCURLY
-	val (e, p) = if gotCurly andalso notAnyOf [gotParen] (* block *)
-			andalso lookaheadToBlockType p then
-			 let val p = expect p Tokens.OPENCURLY
-			     val (blockContents, p) = blockExpr p
-			 in (SOME (SUGAR (BLOCK blockContents)), p)
-			 end
-		     else (e, p) 
-	val gotConst = isConstStarter (peek p)
-	val (e, p) = if gotConst andalso notAnyOf [gotParen]
-		     then let val (e, p) = constExpr p in (SOME e, p) end else (e, p)
-	val possibleNameText = extractString p
-	val (gotName, p) = consumeIf (notAnyOf [gotParen, gotCurly,
-						gotConst]) p Tokens.NAME
-	val (e, p) = if gotName 
-		     then (SOME (VAR possibleNameText), p) else (e, p)
-	val (gotFn, p) = consumeIf (notAnyOf [gotParen, gotCurly,
-					      gotConst, gotName]) p Tokens.FN
-	val (e, p) = if gotFn
-		     then fnExpr p else (e, p)
-	val (gotIf, p) = consumeIf (notAnyOf [gotParen, gotCurly, gotConst,
-					      gotName, gotFn])
-				   p Tokens.IF
-	val (e, p) = if gotIf
-		     then ifExpr p else (e, p)
-	val (gotMatch, p) = consumeIf (notAnyOf [gotParen, gotCurly, gotConst,
-						 gotName, gotFn, gotIf])
-				      p Tokens.MATCH
-	val (e, p) = if gotMatch
-		     then matchExpr p else (e, p)
-	val (gotRaise, p) = consumeIf (notAnyOf [gotParen, gotCurly, gotConst,
-						 gotName, gotFn, gotIf, gotMatch])
-				      p Tokens.RAISE
-	val (e, p) = if gotRaise
-		     then raiseExpr p else (e, p)
-	val (e, p) = case e of SOME e => (e, p)
-			     | NONE => raise SyntaxError ("Unexpected " ^
-							  Lexer.tokenString (peek p) ^
-							  " in expression")
-	val gotDot = Tokens.kindOf (peek p) = Tokens.DOT
-	val (e, p) = if gotDot then dotExpr (e, p) else (e, p)
-	val gotBracket = Tokens.kindOf (peek p) = Tokens.OPENSQUARE
-	val (e, p) = if gotBracket then vectorIndex (e, p) else (e, p)
-	val gotInfix = isInfixStarter (peek p)
-	val (e, p) = if gotInfix then infixExpr (e, p) else (e, p)
-    in (e, p)
-    end
-
-and blockExpr p =
-    let fun valBinding p =
-	    let val name = extractString p
-		val p = expect p Tokens.NAME
-		val p = expect p Tokens.EQ
-		val (e, p) = expr p
-		val p = expect p Tokens.SEMICOLON
-	    in (VAL (name, e), p)
-	    end
-
-	fun rawExpr p =
-	    let val (e, p) = expr p
-		val p = expect p Tokens.SEMICOLON
-	    in (VAL ("_", e), p)
-	    end
-
-	val (gotVal, p) = consume p Tokens.VAL
-	val (binding, p) = if gotVal then valBinding p else rawExpr p
-	val (gotClose, p) = consume p Tokens.CLOSECURLY
-    in if gotClose then ([binding], p)
-       else let val (rest, p) = blockExpr p
-	    in (binding::rest, p)
-	    end
-    end
-
-and matches p =
-    let fun patternPair p =
-	    let val (pat, p) = pattern p
-		val p = expect p Tokens.ARROW
-		val (e, p) = expr p
-		val (var, alpha) = pat
-	    in ((var, alpha, e), p)
-	    end
-		
-	val (match, p) = patternPair p
-	val (gotPipe, p) = consume p Tokens.PIPE
-    in if gotPipe then let val (rest, p) = matches p
-		       in (match::rest, p)
-		       end
-       else ([match], p)
-    end
-
-and constExpr p =
-    let val possibleNum = extractNumber p
-	val (gotNum, p) = consume p Tokens.NUMBER
-	val (e, p) = if gotNum
-		     then (SOME (CONST (NUM possibleNum)), p)
-		     else (NONE, p)
-	val possibleChar = extractChar p
-	val (gotChar, p) = consumeIf (notAnyOf [gotNum]) p Tokens.CHAR
-	val (e, p) = if gotChar then (SOME (CONST (CHAR possibleChar)), p) else (e, p)
-	val possibleString = extractString p
-	val (gotString, p) = consumeIf (notAnyOf [gotNum, gotChar]) p Tokens.STRING
-	val (e, p) = if gotString then (SOME (SUGAR (STRING possibleString)), p) else (e, p)
-	val (gotTrue, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString]) p Tokens.TRUE
-	val (e, p) = if gotTrue then (SOME (CONST (BOOL true)), p) else (e, p)
-	val (gotFalse, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString, gotTrue]) p Tokens.FALSE
-	val (e, p) = if gotFalse then (SOME (CONST (BOOL false)), p) else (e, p)
-	val (gotUnit, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString, gotTrue, gotFalse]) p Tokens.UNIT
-	val (e, p) = if gotUnit then (SOME (CONST UNIT), p) else (e, p)
-	val (gotSquare, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString, gotTrue, gotFalse]) p Tokens.OPENSQUARE
-	val (e, p) = if gotSquare 
-		     then let val isEmpty = Tokens.kindOf (peek p) = Tokens.CLOSESQUARE
-			      val (es, p) = if isEmpty then ([], p) else listExpr p
-			      val p = expect p Tokens.CLOSESQUARE
-			  in (SOME (SUGAR (LIST es)), p)
-			  end
-		     else (e, p)
-	val (gotCurly, p) = consumeIf (notAnyOf [gotNum, gotChar, gotString, gotTrue, gotFalse, gotSquare]) p Tokens.OPENCURLY
-	val (e, p) = if gotCurly
-		     then let val (records, p) = recordExpr p
-			      val p = expect p Tokens.CLOSECURLY
-			  in (SOME (RECORD_LITERAL records), p)
-			  end
-		     else (e, p)
-	val (e, p) = case e of SOME e => (e, p)
-			     | NONE => raise SyntaxError ("Unexpected " ^
-							  Lexer.tokenString (peek p) ^
-							  " in const")
-    in (e, p)
-    end
-
-and listExpr p =
-    let val (e, p) = expr p
-	val (gotComma, p) = consume p Tokens.COMMA
-    in if gotComma then let val (rest, p) = listExpr p
-			in (e::rest, p)
-			end
-       else ([e], p)
-    end
-
-and recordExpr p =
-    let fun recordPair p =
-	    let val field = extractString p
-		val p = expect p Tokens.NAME
-		val p = expect p Tokens.EQ
-		val (e, p) = expr p
-	    in ((field, e), p)
-	    end
-		
-	val (elem, p) = recordPair p
-	val (gotComma, p) = consume p Tokens.COMMA
-    in if gotComma then let val (rest, p) = recordExpr p
-		       in (elem::rest, p)
-		       end
-       else ([elem], p)
-    end
-
-and infixExpr (e, p) =
-	    end
-
-	fun binOp (name, kind, arg1, p) =
-	    let val p = expect p kind
-		val (arg2, p) = expr p
-	    in (APP (APP (VAR name, arg1), arg2), p)
-	    end
-		
-	val kind = Tokens.kindOf (peek p)
-    in case kind of Tokens.EQ        => binOp ("=",  Tokens.EQ,        e, p)
-		  | Tokens.PLUS      => binOp ("+",  Tokens.PLUS,      e, p)
-		  | Tokens.MINUS     => binOp ("-",  Tokens.MINUS,     e, p)
-		  | Tokens.STAR      => binOp ("*",  Tokens.STAR,      e, p)
-		  | Tokens.SLASH     => binOp ("/",  Tokens.SLASH,     e, p)
-		  | Tokens.PERCENT   => binOp ("%",  Tokens.PERCENT,   e, p)
-		  | Tokens.LESS      => binOp ("<",  Tokens.LESS,      e, p)
-		  | Tokens.MORE      => binOp (">",  Tokens.MORE,      e, p)
-		  | Tokens.LESSEQUAL => binOp ("<=", Tokens.LESSEQUAL, e, p)
-		  | Tokens.MOREEQUAL => binOp (">=", Tokens.MOREEQUAL, e, p)
-		  | Tokens.AND       => binOp ("&&", Tokens.AND,       e, p)
-		  | Tokens.OR        => binOp ("||", Tokens.OR,        e, p)
-		  | _ => (e, p)
-    end
-
+    
 fun directive p =
     let fun assertType p = 
 	    let val p = expect p Tokens.OPENROUND
@@ -518,7 +578,7 @@ fun directive p =
 		val p = expect p Tokens.CLOSEROUND
 	    in (TYPE_EQ (e, tau), p)
 	    end
-			       
+		
 	fun assertTypeError p = 
 	    let val p = expect p Tokens.OPENROUND
 		val (e, p) = expr p
@@ -532,7 +592,7 @@ fun directive p =
 		val p = expect p Tokens.CLOSEROUND
 	    in (VALUE_TRUE e, p)
 	    end
-			       
+		
 	val name = extractString p
 	val p = expect p Tokens.DIRECTIVE
 	val (assertion, p) =
