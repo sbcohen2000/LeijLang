@@ -1,3 +1,5 @@
+fun not bool = if bool then false else true;
+
 union 'a list = CONS of { car = 'a, cdr = list } | NIL;
 
 fun map f list = match list
