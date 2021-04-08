@@ -9,3 +9,29 @@ val num = {
     };
 
 #assert (num = 16);
+
+val num = {
+	val q = { 1; }; /* q = 1 */
+	val r = {
+		val q = 5;
+		val s = 4;
+		q + { s; }; /* r = 9 */
+	    };
+	q + r;
+    };
+
+#assert (num = 10);
+
+val num = {
+	val q = { a = 2, b = 4 };
+	val r = { a = {
+			  val s = 15;
+			  s + 5;
+		      },
+		  b = 18 }; /* r.a = 20, r.b = 18 */
+	val addPair = fn pair => pair.a + pair.b;
+	{ a = addPair q, b = addPair r };
+    };
+
+#assert (num.a = 6);
+#assert (num.b = 38);

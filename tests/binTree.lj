@@ -36,7 +36,6 @@ fun insertAll l t =
     match l with CONS pair => insert pair.car (insertAll pair.cdr t)
 		 | NIL n => t;
 
-
 val x = {
 	val list = [5, 4, 2, 1, 10, 3];
 	val tree = insertAll list (LEAF ());
