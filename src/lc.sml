@@ -58,21 +58,6 @@ fun printTree exp =
     in print (p (exp, "") ^ "\n")
     end
 
-fun rawTypeString tau =
-    let fun ts (TYVAR s) = s
-	  | ts (TYCON "unit") = "()"
-	  | ts (TYCON s) = s
-	  | ts (CONAPP (ta, tb)) =
-	    ts tb ^ " " ^ ts ta
-	  | ts (MU t) =
-	    "mu[" ^ ts t ^ "]"
-	  | ts (RECVAR s) = "*mu"
-	  | ts (TYROW ((label, t), ext)) =
-	    "(" ^ label ^ " :: " ^ ts t ^ " | " ^ ts ext ^ ")"
-	  | ts (TYEMPTYROW) = "[]"
-    in ts tau
-    end
-
 (*                            ------ TYPES ------                             *)
 								 
 datatype typeScheme = FORALL of string list * ty
