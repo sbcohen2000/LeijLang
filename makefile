@@ -4,13 +4,11 @@ BIN_DIR  = bin
 RUN_DIR  = runtime
 TEST_DIR = tests
 
-MLTON_OPTS = -default-ann 'allowExtendedTextConsts true'
-
 SOURCES = $(wildcard $(SRC_DIR)/*)
 
 $(BIN_DIR)/lc: $(SOURCES) | build bin
 	cp $(SOURCES) build
-	cd $(OUT_DIR); mlton $(MLTON_OPTS) lc.mlb
+	cd $(OUT_DIR); mlton lc.mlb
 	rm $(patsubst $(SRC_DIR)/%, $(OUT_DIR)/%, $(SOURCES))
 	cp $(OUT_DIR)/lc $(BIN_DIR)
 

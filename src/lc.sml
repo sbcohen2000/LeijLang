@@ -48,10 +48,10 @@ fun printTree exp =
 			    | (RAW (_, vars, _))    => rawLabel vars
 			    | (SUGAR _)             => ("sugar", [])
 		fun childString [] = ""
-		  | childString (e::[]) = indent ^ "└── " ^
+		  | childString (e::[]) = indent ^ "+-- " ^
 					  p (e, indent ^ "    ")
-		  | childString (e::es) = indent ^ "├── " ^
-					  p (e, indent ^ "│   ") ^
+		  | childString (e::es) = indent ^ "|-- " ^
+					  p (e, indent ^ "|   ") ^
 					  childString es
 	    in label ^ "\n" ^ childString children
 	    end
@@ -694,7 +694,7 @@ in fun typeString (tau, Delta) =
    fun typeSchemeString (FORALL ([], t), Delta) =
        typeString (t, Delta)
      | typeSchemeString (FORALL (vars, t), Delta) =
-       "∀" ^ injectBetween "" vars ^ "." ^ typeString (t, Delta)
+       "forall " ^ injectBetween "" vars ^ "." ^ typeString (t, Delta)
 						      
 end
 
