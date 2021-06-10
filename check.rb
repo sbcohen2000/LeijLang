@@ -13,7 +13,7 @@ end
 
 def evalTest(test, description)
   response = `./bin/lc -q #{test}`
-  if response.empty? then
+  if response.empty? and $?.exitstatus == 0 then
     puts "#{description} \u001b[32mPASSED\u001b[0m"
   else
     puts ("#{description} \u001b[31mFAILED\u001b[0m\n" + response)
