@@ -1145,15 +1145,31 @@ fun prepareEnvironment shouldAddBasis =
 	
 fun isValidFile str =
     not (String.isPrefix "-" str)
-	
+
+fun printHelp () =
+    let val help_string = "usage: lc [flag ...] [file.lj]\n" ^
+			  "Flags:\n" ^
+			  "\t-h         print this screen\n" ^
+			  "\t-q         do not show the REPL prompt\n" ^
+			  "\t--help     print this screen\n" ^
+			  "\t--AST      print the abstract syntax tree of each declaration\n" ^
+			  "\t--no-basis do not load the Leij basis library\n"
+    in print help_string
+    end
+
 val _ = let val args = CommandLine.arguments()
 	    val srcFile = List.find isValidFile args
+	    val help = List.exists (fn s => s = "--help" orelse s = "-h") args
 	    val prompt = not (List.exists (fn s => s = "-q") args)
 	    val showAST = List.exists (fn s => s = "--AST") args
 	    val addBasis = not (List.exists (fn s => s = "--no-basis") args)
 	    val env = prepareEnvironment addBasis 
 	    val flags = { prompt = prompt, showAST = showAST }
-	    val _ = case srcFile of SOME filename => evalFile(flags, filename, env)
-				  | NONE => REPL (flags, env)
+	    val _ = if help then printHelp ()
+		    else let val _ = case srcFile
+				      of SOME filename => evalFile(flags, filename, env)
+				       | NONE => REPL (flags, env)
+			 in ()
+			 end
 	in ()
 	end
