@@ -1105,6 +1105,7 @@ fun evalFile (flags, filename, (Gamma, Rho, Delta)) =
     let val text = readFileIntoString filename
 	val decls = SOME (parse text)
 		    handle Parser.SyntaxError msg => NONE before print msg
+			 | Parser.ShouldNotHappen msg => NONE before print ("Shouldn't Happen: " ^ msg)
 	val (_, Gamma', Rho', Delta')
 	    = (case decls of SOME ds =>
 			     List.foldl (fn (dec, (str, Gamma, Rho, Delta)) =>

@@ -9,6 +9,7 @@ signature PARSER =
 sig
     type parser
     exception SyntaxError of string
+    exception ShouldNotHappen of string
     val newParser : Lexer.lexer -> parser
     val parse : parser -> AST.decl list
 end
@@ -20,6 +21,7 @@ open AST
 (* next token, the lexer *)
 type parser = Tokens.token * Lexer.lexer
 exception SyntaxError of string
+exception ShouldNotHappen of string
 			     
 fun newParser l = Lexer.nextToken l
 
@@ -294,7 +296,7 @@ in fun isConstStarter token =
 		       then pushOp ((OPERATOR top)::popped, rest')
 		       else (popped, (OPERATOR top)::rest')
 		     | pushOp (popped, []) = (popped, [])
-		     | pushOp _ = raise SyntaxError "Expression in operator stack!"
+		     | pushOp _ = raise ShouldNotHappen "Expression in operator stack!"
 		   val (popped, opStack) = pushOp ([], opStack)
 	       in (List.rev popped) @ (postfixIfy (rest, (OPERATOR opr)::opStack))
 	       end
@@ -308,7 +310,7 @@ in fun isConstStarter token =
 	     | astIfy (skipped, elem::unprocessed) =
 	       (case collapse (skipped, elem::unprocessed) of SOME collapsed => astIfy ([], collapsed)
 							    | NONE => astIfy (elem::skipped, unprocessed))
-	     | astIfy _ = raise SyntaxError "Could not astIfy!\n"
+	     | astIfy _ = raise ShouldNotHappen "Could not astIfy!\n"
 				
 	   val postfixChain = postfixIfy (infixChain, [])
 	   val expr = astIfy ([], postfixChain)
