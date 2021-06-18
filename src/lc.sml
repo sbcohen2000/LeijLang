@@ -1044,7 +1044,7 @@ fun processDef (VAL (name, rawExpr), flags, Gamma, Rho, Delta) =
 			  val recTau = MU (replaceTycon (name, rawTau, RECVAR recVar))
 		      (* FIXME: The fact that I have to assign to the RECVAR
 		       * here instead of just leaving it as a sentinel
-		       * probably means there's a bug somewhere. RECVARS are
+		       * probably means there's a bug somewhere. RECVARs are
 		       * reassigned automatically in freshinstance, so this 
 		       * should not be necessary.
 		       *)
@@ -1134,10 +1134,12 @@ fun REPL (flags, (Gamma, Rho, Delta)) =
     in loop (Gamma, Rho, Delta)
     end
 
-fun prepareEnvironment () =
+fun prepareEnvironment shouldAddBasis =
     let val (Gamma, Rho) = introducePrimitives (emptyEnv, emptyEnv, emptyEnv)
 	val flags = { prompt = false, showAST = false }
-	val (Gamma, Rho, Delta) = evalFile (flags, "basis.lj", (Gamma, Rho, emptyEnv))
+	val (Gamma, Rho, Delta) = if shouldAddBasis
+				  then evalFile (flags, "basis.lj", (Gamma, Rho, emptyEnv))
+				  else (Gamma, Rho, emptyEnv)
     in (Gamma, Rho, Delta)
     end
 	
@@ -1148,7 +1150,8 @@ val _ = let val args = CommandLine.arguments()
 	    val srcFile = List.find isValidFile args
 	    val prompt = not (List.exists (fn s => s = "-q") args)
 	    val showAST = List.exists (fn s => s = "--AST") args
-	    val env = prepareEnvironment ()
+	    val addBasis = not (List.exists (fn s => s = "--no-basis") args)
+	    val env = prepareEnvironment addBasis 
 	    val flags = { prompt = prompt, showAST = showAST }
 	    val _ = case srcFile of SOME filename => evalFile(flags, filename, env)
 				  | NONE => REPL (flags, env)
