@@ -38,3 +38,9 @@ fun length list = match list with CONS pair => 1 + length pair.cdr
 #assert (length (first nested) = 2);
 #assert (last (last nested) = 4);
 #assert (length nested = length (first nested));
+
+/* custom nested list type */
+union nested_list = NODE of { car = int list, cdr = nested_list } | EMPTY;
+
+val nested_2 = NODE { car = [1, 2, 3], cdr = EMPTY () };
+#check-type-error (NODE { car = [true, false], cdr = EMPTY () });
