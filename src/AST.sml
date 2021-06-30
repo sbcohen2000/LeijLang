@@ -51,3 +51,18 @@ datatype decl = VAL of string * exp
 withtype lam = string * exp
 
 end
+
+structure DEBUG = struct
+open AST
+fun typeString (TYVAR a) = "(TYVAR " ^ a ^ ")"
+  | typeString (TYCON c) = "(TYCON " ^ c ^ ")"
+  | typeString (CONAPP (ta, tb)) = "(" ^ typeString ta ^ " -> " ^
+				   typeString tb ^ ")"
+  | typeString (MU t) = "(MU " ^ typeString t ^ ")"
+  | typeString (RECVAR tr) = "(MU*)"
+  | typeString TYEMPTYROW = "EMPTYROW"
+  | typeString (TYROW ((field, t), rest)) = "(TYROW (" ^ field ^ ", " ^
+					    typeString t ^ ") " ^
+					    typeString rest ^ ")"
+end
+
