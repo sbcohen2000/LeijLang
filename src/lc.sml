@@ -1033,15 +1033,20 @@ fun processDef (VAL (name, rawExpr), flags, Gamma, Rho, Delta) =
 	" : " ^
 	typeSchemeString (itsType, Delta), Gamma', Rho', Delta)
     end
-  | processDef (UNION (name, tyvars, options), flags, Gamma, Rho, Delta) =
+  | processDef (UNION (name, tyvar, options), flags, Gamma, Rho, Delta) =
     let val row = List.foldl rowtype TYEMPTYROW options
 	val rawTau = CONAPP (TYCON "variant", row)
-	val _ = if not (freetyvarsInType rawTau = tyvars)
+	val tyvarsMatch =
+	    case (tyvar, freetyvarsInType rawTau) of (SOME ftv, [s]) => ftv = s
+						   | (NONE, []) => true
+						   | _ => false
+	val _ = if not tyvarsMatch
 		then raise TypeError "tyvar mismatch in variant"
 		else ()
-	val tau = if isRectype (name, rawTau) then
+	val expandedTau = expandType (rawTau, Delta)
+	val tau = if isRectype (name, expandedTau) then
 		      let val recVar = ref TYEMPTYROW
-			  val recTau = MU (replaceTycon (name, rawTau, RECVAR recVar))
+			  val recTau = MU (replaceTycon (name, expandedTau, RECVAR recVar))
 		      (* FIXME: The fact that I have to assign to the RECVAR
 		       * here instead of just leaving it as a sentinel
 		       * probably means there's a bug somewhere. RECVARs are

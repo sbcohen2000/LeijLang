@@ -70,15 +70,6 @@ fun extractNumber parser = case Tokens.intOf (peek parser) of SOME i => i
 fun notAnyOf [] = true
   | notAnyOf (b::bs) = not b andalso notAnyOf bs
 					      
-fun tyvarList p =
-    let val quoteContents = extractString p
-	val (gotQuote, p) = consume p Tokens.QUOTE
-    in if gotQuote then let val (l, p) = tyvarList p
-			in (quoteContents::l, p)
-			end
-       else ([], p)
-    end
-
 fun arg p =
     let val argContents = extractString p
 	val (gotName, p) = consume p Tokens.NAME
@@ -96,8 +87,6 @@ fun argList p =
 	    end
        else ([argContents], p)
     end
-
-val _ = op tyvarList : parser -> (string list * parser)
 
 fun oneOf _ [] = false
   | oneOf k (kind::kinds) = kind = k orelse oneOf k kinds
@@ -653,12 +642,14 @@ fun decl p =
 	    end
 
 	fun declUni p =
-	    let val (tyvars, p) = tyvarList p
+	    let val possibleTyvarString = extractString p
+		val (gotTyvar, p) = consume p Tokens.QUOTE
+		val tyvar = if gotTyvar then SOME possibleTyvarString else NONE
 		val name = extractString p
 		val p = expect p Tokens.NAME
 		val p = expect p Tokens.EQ
 		val (body, p) = unionBody p
-	    in (SOME (UNION (name, tyvars, body)), p)
+	    in (SOME (UNION (name, tyvar, body)), p)
 	    end
 
 	val (gotFun, p) = consume p Tokens.FUN

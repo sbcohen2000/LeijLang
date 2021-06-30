@@ -18,7 +18,7 @@ datatype ty = TYVAR of string
 	    | TYROW of (string * ty) * ty
 			    
 datatype decl = VAL of string * exp
-	      | UNION of string * string list * (string * ty) list
+	      | UNION of string * string option * (string * ty) list
 	      | STATIC_ASSERT of assertion
      and exp = CONST of value
 	     | VAR of string             
