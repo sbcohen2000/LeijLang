@@ -133,6 +133,7 @@ fun consumeWhile pred lexer =
 	       then f (consume lexer)
 	       else lexer
 	    end
+	    handle endOfString => lexer
     in f lexer
     end
 	
@@ -257,6 +258,7 @@ in fun consumeComment lexer =
        let fun f lexer =
 	       let val this = peek lexer
 		   val next = lookahead lexer
+			      handle endOfString => #" " (* anything but "*" *)
 		   val lexer = if this = #"/" andalso next = #"*"
 			       then consumeComment lexer
 			       else lexer
@@ -266,6 +268,7 @@ in fun consumeComment lexer =
 			       else lexer
 	       in lexer
 	       end
+	       handle endOfString => lexer
        in f lexer
        end
 end	    
